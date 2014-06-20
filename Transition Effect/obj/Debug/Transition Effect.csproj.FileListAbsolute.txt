@@ -1,0 +1,62 @@
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\App.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\MainPage.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Templates\EffectList.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Templates\TemplateResourceDictionary.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Templates\VideoList.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Transition Effect.xr.xml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Transition Effect.exe
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Transition Effect.pdb
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\resources.pri
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\AppxManifest.xml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Transition Effect.build.appxrecipe
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\App.g.i.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\App.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\MainPage.g.i.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\MainPage.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\EffectList.g.i.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\EffectList.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\TemplateResourceDictionary.g.i.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\TemplateResourceDictionary.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\VideoList.g.i.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\VideoList.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\XamlTypeInfo.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\App.xaml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\App.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\XamlSaveStateFile.xml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\MainPage.xaml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\EffectList.xaml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\TemplateResourceDictionary.xaml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\VideoList.xaml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\MainPage.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Transition Effect.exe
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Transition Effect.pdb
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\priconfig.xml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\priconfig.xml.intermediate
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\layout.resfiles
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\layout.resfiles.intermediate
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\resources.resfiles
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\resources.resfiles.intermediate
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\pri.resfiles
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\pri.resfiles.intermediate
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\qualifiers.txt
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\qualifiers.txt.intermediate
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\MultipleQualifiersPerDimensionFound.txt
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\ProjectArchitectures.txt
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Converters\ConverterResourceDictionary.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Converters\ConverterResourceDictionary.g.i.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Converters\ConverterResourceDictionary.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Converters\ConverterResourceDictionary.xaml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Templates\HorizontalStackPanel_ItemsPanelTemplate.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\HorizontalStackPanel_ItemsPanelTemplate.g.i.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\HorizontalStackPanel_ItemsPanelTemplate.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\HorizontalStackPanel_ItemsPanelTemplate.xaml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\bin\Debug\Templates\ListViewItem.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\ListViewItem.g.i.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\ListViewItem.g.cs
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\ListViewItem.xaml
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Converters\ConverterResourceDictionary.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\EffectList.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\HorizontalStackPanel_ItemsPanelTemplate.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\ListViewItem.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\TemplateResourceDictionary.xbf
+c:\users\shivam.singh\documents\visual studio 2013\Projects\Transition Effect\Transition Effect\obj\Debug\Templates\VideoList.xbf

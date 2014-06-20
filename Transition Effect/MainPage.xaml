@@ -1,0 +1,55 @@
+﻿<Page
+    x:Class="Transition_Effect.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Transition_Effect"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Page.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Templates/TemplateResourceDictionary.xaml"/>
+                <ResourceDictionary Source="Converters/ConverterResourceDictionary.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Page.Resources>
+    
+    <Grid>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="2*" />
+            <RowDefinition Height=".5*"/>
+            <RowDefinition/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+        
+        
+        <Grid>
+            <MediaElement Width="320" Height="240"  x:Name="Video" />
+        </Grid>
+        
+        <Grid  HorizontalAlignment="Center" Grid.Row="1">
+            <Button Click="Apply_Effect"  Content="ApplyEffect"/>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <ListView ScrollViewer.HorizontalScrollMode="Enabled" ItemsSource="{Binding EffectList}"
+                      SelectionMode="Single" ItemContainerStyle="{StaticResource ListViewItemStyle}"
+                      ItemTemplate="{StaticResource EffectListItemTemplate}"
+                      ItemsPanel="{StaticResource HorizontalItemPanelTemplate}"
+                        SelectedValue="{Binding CurrentEffect, Mode=TwoWay}"
+                      />
+        </Grid>
+
+        <Grid Grid.Row="3">
+            <ListView ScrollViewer.HorizontalScrollMode="Enabled" ItemsSource="{Binding VideoList}" 
+                      SelectionMode="Single" ItemContainerStyle="{StaticResource ListViewItemStyle}"
+                      ItemTemplate="{StaticResource VideoListItemTemplate}"
+                      ItemsPanel="{StaticResource HorizontalItemPanelTemplate}"
+                        SelectedValue="{Binding CurrentVideo, Mode=TwoWay}"
+                      />
+        </Grid>
+    </Grid>
+</Page>
