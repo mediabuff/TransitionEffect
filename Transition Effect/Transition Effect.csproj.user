@@ -7,5 +7,6 @@
     <DebugEngines>{92EF0900-2251-11D2-B72E-0000F87572EF}</DebugEngines>
     <EnableUnmanagedDebugging>true</EnableUnmanagedDebugging>
     <BackgroundTaskDebugEngines>{92EF0900-2251-11D2-B72E-0000F87572EF}</BackgroundTaskDebugEngines>
+    <DeviceId>184901A8-DC44-4CED-869E-DC7733D048D6</DeviceId>
   </PropertyGroup>
 </Project>
