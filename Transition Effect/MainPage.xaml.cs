@@ -89,7 +89,18 @@ namespace Transition_Effect
 			videoDesc.EncodingProperties.FrameRate.Denominator = vd.Denominator;
 			videoDesc.EncodingProperties.Bitrate = (uint)(((UInt64) vd.Numerator * vd.Width * vd.Height * 4) / vd.Denominator);
 
-			mss = new MediaStreamSource(videoDesc);
+			if(vd.HasAudio)
+			{
+				AudioEncodingProperties audioProperties = AudioEncodingProperties.CreatePcm(vd.ASampleRate, vd.AChannelCount, vd.ABitsPerSample);
+				AudioStreamDescriptor audioDesc = new AudioStreamDescriptor(audioProperties);
+
+				mss = new MediaStreamSource(videoDesc, audioDesc);
+			}
+			else
+			{
+				mss = new MediaStreamSource(videoDesc);
+			}
+			
 			TimeSpan spanBuffer = new TimeSpan(0, 0, 0, 0, 250);
 			mss.BufferTime = spanBuffer;
 			mss.Starting += MSS_Starting;

@@ -104,7 +104,9 @@ bool CAdvancedMediaSource::AddVideo(Platform::String^ url, EIntroType intro, UIN
 	}
 	else if((vd.Width * vd.Height) < (m_vd.Width * m_vd.Height))
 	{
+		bool HasAudio = m_vd.HasAudio | vd.HasAudio;
 		m_vd = vd;
+		m_vd.HasAudio = HasAudio;
 	}
 
 	m_Sources.push_back(pV);
@@ -112,8 +114,17 @@ bool CAdvancedMediaSource::AddVideo(Platform::String^ url, EIntroType intro, UIN
 	return true;
 }
 
+void CAdvancedMediaSource::GetVideoData(SVideoData* vd) 
+{ 
+	AutoLock lock(m_critSec); 
+	
+	*vd = m_vd; 
+}
+
 bool CAdvancedMediaSource::OnStart(Windows::Media::Core::VideoStreamDescriptor^ videoDesc)
 {
+	AutoLock lock(m_critSec);
+
 	if(!m_Initialized)
 	{
 		return false;
@@ -174,6 +185,11 @@ bool CAdvancedMediaSource::OnStart(Windows::Media::Core::VideoStreamDescriptor^ 
 	}
 
 	DXUnlock();
+
+	m_CurrentAudio = 0;
+	m_CurrentVideo = 0;
+	m_VideoTimestamp = 0;
+	m_AudioTimestamp = 0;
 
 	// -----
 	m_Viewport.Width = (float) m_vd.Width;
@@ -530,7 +546,39 @@ void CAdvancedMediaSource::GenerateVideoSample(Windows::Media::Core::MediaStream
 
 void CAdvancedMediaSource::GenerateAudioSample(Windows::Media::Core::MediaStreamSourceSampleRequest^ request)
 {
+	ComPtr<IMFMediaStreamSourceSampleRequest> pRequest;
 
+	RET_IFFAIL(reinterpret_cast<IInspectable*>(request)->QueryInterface(IID_PPV_ARGS(&pRequest)))
+
+	AutoLock lock(m_critSec);
+	IMFSample* pSample = nullptr;
+
+	if(!m_Initialized)
+	{
+		return;
+	}
+
+	while(m_CurrentAudio < (int)m_Sources.size())
+	{
+		m_Sources[m_CurrentAudio]->GetAudioSample(&pSample);
+
+		if(pSample != nullptr)
+		{
+			LONGLONG SampleDuration = 0;
+
+			pSample->GetSampleDuration(&SampleDuration);
+			//pSample->SetSampleDuration();
+			pSample->SetSampleTime(m_AudioTimestamp);
+			pRequest->SetSample(pSample);
+			m_AudioTimestamp += SampleDuration;
+			
+			break;
+		}
+		else
+		{
+			m_CurrentAudio++;
+		}
+	}	
 }
 
 struct ScreenVertex
@@ -627,9 +675,6 @@ bool CAdvancedMediaSource::InitResources()
 	m_Viewport.MaxDepth = 1.0f;
 	m_Viewport.TopLeftX = 0.0f;
 	m_Viewport.TopLeftY = 0.0f;
-
-	m_CurrentVideo = 0;
-	m_VideoTimestamp = 0;
 
 	return true;	
 }

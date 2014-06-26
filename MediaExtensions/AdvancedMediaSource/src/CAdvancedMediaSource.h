@@ -15,7 +15,7 @@ namespace AdvancedMediaSource
 		virtual ~CAdvancedMediaSource();
 
 		bool AddVideo(Platform::String^ url, EIntroType intro, UINT32 introDuration, EOutroType outro, UINT32 outroDuration, EVideoEffect videoEffect);
-		void GetVideoData(SVideoData* vd) { *vd = m_vd; }
+		void GetVideoData(SVideoData* vd);
 		bool IsInitialized() { return m_Initialized; }
 
 		bool OnStart(Windows::Media::Core::VideoStreamDescriptor^ videoDesc);
@@ -35,6 +35,7 @@ namespace AdvancedMediaSource
 
 		std::vector<CSourcePtr> m_Sources;
 		int m_CurrentVideo;
+		int m_CurrentAudio; // MediaStreamSource requests (and buffers) audio and video samples separately. 
 
 		CritSec m_critSec;
 
@@ -64,6 +65,7 @@ namespace AdvancedMediaSource
 		SVideoData m_vd;
 		ComPtr<IMFVideoSampleAllocator> m_pVideoSamplesAllocator;		
 		LONGLONG m_VideoTimestamp;
+		LONGLONG m_AudioTimestamp;
 
 		bool m_Initialized;		
 	};

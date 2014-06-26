@@ -11,11 +11,10 @@ CSource::CSource(IMFDXGIDeviceManager* pDXManager, HANDLE deviceHandle, Platform
 	m_Intro.Duration = introDuration * 10000;
 	m_Outro.Type = outro;
 	m_Outro.Duration = outroDuration * 10000;
+	m_vd.HasAudio = false;
 
 	HRESULT hr;
-	ComPtr<IMFAttributes> m_pAttributes;
-
-	m_vd.HasAudio = false;
+	ComPtr<IMFAttributes> m_pAttributes;	
 
 	if(MFCreateAttributes(&m_pAttributes, 10) != S_OK)
 	{
@@ -29,24 +28,6 @@ CSource::CSource(IMFDXGIDeviceManager* pDXManager, HANDLE deviceHandle, Platform
 	m_pAttributes->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, pDXManager);
 	
 	if(MFCreateSourceReaderFromURL(url->Data(), m_pAttributes.Get(), &m_pSourceReader) != S_OK)
-	{
-		return;
-	}
-
-	ComPtr<IMFMediaSource> pMediaSource;
-	ComPtr<IMFPresentationDescriptor> pPresentationDesc;	
-
-	if(m_pSourceReader->GetServiceForStream(MF_SOURCE_READER_MEDIASOURCE, GUID_NULL, IID_PPV_ARGS(&pMediaSource)) != S_OK)
-	{
-		return;
-	}
-
-	if(pMediaSource->CreatePresentationDescriptor(&pPresentationDesc) != S_OK)
-	{
-		return;
-	}
-
-	if(pPresentationDesc->GetUINT64(MF_PD_DURATION, (UINT64*) &m_vd.Duration) != S_OK)
 	{
 		return;
 	}
@@ -180,14 +161,51 @@ CSource::CSource(IMFDXGIDeviceManager* pDXManager, HANDLE deviceHandle, Platform
 		}
 	}
 
+	ComPtr<IMFMediaSource> pMediaSource;
+	ComPtr<IMFPresentationDescriptor> pPresentationDesc;
+
+	if(m_pSourceReader->GetServiceForStream(MF_SOURCE_READER_MEDIASOURCE, GUID_NULL, IID_PPV_ARGS(&pMediaSource)) != S_OK)
+	{
+		return;
+	}
+
+	/*ComPtr<IMFRateSupport> rr;
+	ComPtr<IMFRateControl> rr2;
+	float rate = 537.852f;
+	hr = pMediaSource.As(&rr);
+	hr = rr->GetFastestRate(MFRATE_REVERSE, FALSE, &rate);
+
+	hr = pMediaSource.As(&rr2);
+	hr = rr2->SetRate(TRUE, -1.0f);*/
+
+	if(pMediaSource->CreatePresentationDescriptor(&pPresentationDesc) != S_OK)
+	{
+		return;
+	}
+
+	if(pPresentationDesc->GetUINT64(MF_PD_DURATION, (UINT64*)&m_vd.Duration) != S_OK)
+	{
+		return;
+	}
+
+	//PROPVARIANT var;
+	//PropVariantInit(&var);
+	//var.vt = VT_I8;
+	//var.hVal.QuadPart = 100000000; // 10^7 = 1 second.
+
+	//hr = pMediaSource->Start(pPresentationDesc.Get(), NULL, &var);
+
+	//PropVariantClear(&var);
+
+
 	//Load first frame
 	if(!loadNextFrame())
 	{
 		return;
 	}	
 
-	D3D11_TEXTURE2D_DESC decs;
-	m_pTexture->GetDesc(&decs);
+	//D3D11_TEXTURE2D_DESC decs;
+	//m_pTexture->GetDesc(&decs);
 
 	// Create buffer for shader
 	ComPtr<ID3D11Device> pDevice;
@@ -260,6 +278,20 @@ bool CSource::loadNextFrame()
 	}
 
 	return m_pTexture.Get() != nullptr;
+}
+
+void CSource::GetAudioSample(IMFSample** ppSample)
+{
+	if(!m_Initialized)
+	{
+		return;
+	}
+
+	DWORD ActualStreamIndex = 0;
+	DWORD StreamFlags = 0;
+	LONGLONG SampleTimestamp = 0;
+
+	m_pSourceReader->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &ActualStreamIndex, &StreamFlags, &SampleTimestamp, ppSample);	
 }
 
 bool CSource::InitRuntimeVariables(ID3D11DeviceContext* pDXContext, const SVideoData* vd, LONGLONG beginningTime)

@@ -16,6 +16,7 @@ namespace AdvancedMediaSource
 		~CSource();
 
 		bool LoadNextFrame();
+		void GetAudioSample(IMFSample** ppSample);
 		bool InitRuntimeVariables(ID3D11DeviceContext* pDXContext, const SVideoData* vd, LONGLONG beginningTime);
 		bool UpdateBuffers(ID3D11DeviceContext* pDXContext);
 		void SetBuffers(ID3D11DeviceContext* pDXContext);
