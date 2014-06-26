@@ -191,7 +191,12 @@ namespace Transition_Effect
 
 		private void Slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
 		{
-			ams.SetPlaybackRate((int) slPlaybackRate.Value, 10);
+			RangeBase rb = sender as RangeBase;
+
+			if(rb != null && ams != null)
+			{
+				ams.SetPlaybackRate((int)rb.Value, 10);
+			}
 		}
     }
 }
