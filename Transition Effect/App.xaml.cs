@@ -108,7 +108,9 @@ namespace Transition_Effect
         /// <param name="e">Details about the navigation event.</param>
         private void RootFrame_FirstNavigated(object sender, NavigationEventArgs e)
         {
+        
             var rootFrame = sender as Frame;
+       
             rootFrame.ContentTransitions = this.transitions ?? new TransitionCollection() { new NavigationThemeTransition() };
             rootFrame.Navigated -= this.RootFrame_FirstNavigated;
         }
