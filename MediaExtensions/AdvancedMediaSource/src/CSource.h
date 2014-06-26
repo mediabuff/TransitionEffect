@@ -22,8 +22,7 @@ namespace AdvancedMediaSource
 		void SetBuffers(ID3D11DeviceContext* pDXContext);
 
 		void SetFading(float fading) { m_vsd.fading = fading; }
-		ID3D11Texture2D* GetTexture() { return m_pTexture.Get(); }		
-		UINT GetIndex() { return m_TexIndex; }
+		IMFSample* GetSample() { return m_pSample.Get(); }
 		void GetVideoData(SVideoData* vd) { *vd = m_vd; }
 		LONGLONG GetDuration() { return m_vd.Duration; }
 		EIntroType GetIntroType() { return m_Intro.Type; }
@@ -32,7 +31,7 @@ namespace AdvancedMediaSource
 		LONGLONG GetOutroDuration() { return m_Outro.Duration; }
 		
 		bool IsInitialized() { return m_Initialized; }
-		bool HasFrameLoaded() { return m_pTexture.Get() != nullptr; }	
+		bool HasFrameLoaded() { return m_pSample.Get() != nullptr; }
 
 	public:
 
@@ -49,9 +48,8 @@ namespace AdvancedMediaSource
 	private:
 
 		ComPtr<IMFSourceReader> m_pSourceReader;
-		ComPtr<ID3D11Texture2D> m_pTexture;
+		ComPtr<IMFSample> m_pSample;
 		ComPtr<ID3D11Buffer> m_pVDBuffer;
-		UINT m_TexIndex;
 		SVideoData m_vd;
 		SVideoShaderData m_vsd;
 

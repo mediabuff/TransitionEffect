@@ -22,7 +22,7 @@ Texture2D<float4> Input : register(t0);
 
 float4 main(VSOutput Index) : SV_Target0
 {
-	float4 color = Input.Sample(samp, Index.Tex) * vsd0.fading;
+	float4 color = Input.Sample(samp, Index.Tex);// *vsd0.fading;
 	//color.rgb = 1.0 - color.rgb;
 	
 	return color;

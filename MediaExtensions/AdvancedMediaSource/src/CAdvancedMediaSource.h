@@ -21,13 +21,14 @@ namespace AdvancedMediaSource
 		bool OnStart(Windows::Media::Core::VideoStreamDescriptor^ videoDesc);
 		void GenerateVideoSample(Windows::Media::Core::MediaStreamSourceSampleRequest^ request);
 		void GenerateAudioSample(Windows::Media::Core::MediaStreamSourceSampleRequest^ request);
+		bool SetPlaybackRate(int nominator, int denominator);
 
 	private:
 
 		bool InitResources();
 		bool DXLock();
 		void DXUnlock();
-		bool CreateInputView(ID3D11Texture2D* pTexture, UINT Index, ID3D11ShaderResourceView** ppView);
+		bool CreateInputView(IMFSample* pSample, ID3D11ShaderResourceView** ppView);
 		bool CreateOutputView(IMFSample* pSample, ID3D11RenderTargetView** ppView);
 		bool Draw(ID3D11ShaderResourceView* pInputView, ID3D11RenderTargetView* pOutputView);
 		
@@ -66,6 +67,7 @@ namespace AdvancedMediaSource
 		ComPtr<IMFVideoSampleAllocator> m_pVideoSamplesAllocator;		
 		LONGLONG m_VideoTimestamp;
 		LONGLONG m_AudioTimestamp;
+		int m_RateN, m_RateD; // Playback rate nominator and denominator
 
 		bool m_Initialized;		
 	};

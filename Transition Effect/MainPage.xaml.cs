@@ -105,7 +105,7 @@ namespace Transition_Effect
 				mss = new MediaStreamSource(videoDesc);
 			}
 			
-			TimeSpan spanBuffer = new TimeSpan(0, 0, 0, 0, 250);
+			TimeSpan spanBuffer = new TimeSpan(0, 0, 0, 0, 0);
 			mss.BufferTime = spanBuffer;
 			mss.Starting += MSS_Starting;
 			mss.SampleRequested += MSS_SampleRequested;

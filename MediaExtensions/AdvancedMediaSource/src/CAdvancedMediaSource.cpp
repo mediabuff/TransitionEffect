@@ -12,6 +12,8 @@ CAdvancedMediaSource::CAdvancedMediaSource()
 {
 	m_Initialized = false;
 	m_ResetToken = 0;
+	m_RateN = 1;
+	m_RateD = 5;
 
 	if(MFStartup(MF_VERSION) != S_OK)
 	{
@@ -34,7 +36,7 @@ CAdvancedMediaSource::CAdvancedMediaSource()
 
 	HRESULT hr;
 
-	if((hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_WARP, NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT, rgFeatureLevels, ARRAYSIZE(rgFeatureLevels), D3D11_SDK_VERSION, &m_pDX11Device, &maxSupportedLevelByDevice, NULL)) != S_OK)
+	if((hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT, rgFeatureLevels, ARRAYSIZE(rgFeatureLevels), D3D11_SDK_VERSION, &m_pDX11Device, &maxSupportedLevelByDevice, NULL)) != S_OK)
 	{
 		return;
 	}		
@@ -227,20 +229,27 @@ void CAdvancedMediaSource::GenerateVideoSample(Windows::Media::Core::MediaStream
 			ComPtr<ID3D11ShaderResourceView> pInputView;
 			ComPtr<ID3D11RenderTargetView> pOutputView;
 			ComPtr<IMFSample> pSample;
-
-			RET_IFFAIL(m_pVideoSamplesAllocator->AllocateSample(&pSample));
+			HRESULT hr = S_OK;
+			if((hr = m_pVideoSamplesAllocator->AllocateSample(&pSample)) != S_OK)
+			{
+				return;
+			}
+			if(pSample.Get() == nullptr)
+			{
+				return;
+			}
 			RET_IFFALSE(DXLock())
 			RET_IFFALSE(CreateOutputView(pSample.Get(), &pOutputView))
-			RET_IFFALSE(CreateInputView(m_Sources[m_CurrentVideo]->GetTexture(), m_Sources[m_CurrentVideo]->GetIndex(), &pInputView))
+			RET_IFFALSE(CreateInputView(m_Sources[m_CurrentVideo]->GetSample(), &pInputView))
 
-			if(m_VideoTimestamp < m_Sources[m_CurrentVideo]->IntroTime)
+			if(m_VideoTimestamp < ((m_Sources[m_CurrentVideo]->IntroTime * m_RateN) / m_RateD))
 			{
 				if(m_Sources[m_CurrentVideo]->GetIntroType() == EIntroType::FadeIn)
 				{
-					m_Sources[m_CurrentVideo]->SetFading(math_clamp(0.0f, (float)(m_VideoTimestamp - m_Sources[m_CurrentVideo]->StartTime) / m_Sources[m_CurrentVideo]->GetIntroDuration(), 1.0f));
+					m_Sources[m_CurrentVideo]->SetFading(math_clamp(0.0f, (float)(m_VideoTimestamp - ((m_Sources[m_CurrentVideo]->StartTime * m_RateN) / m_RateD)) / ((m_Sources[m_CurrentVideo]->GetIntroDuration() * m_RateN) / m_RateD), 1.0f));
 				}
 			}
-			else if(m_VideoTimestamp < m_Sources[m_CurrentVideo]->OutroTime)
+			else if(m_VideoTimestamp < ((m_Sources[m_CurrentVideo]->OutroTime * m_RateN) / m_RateD))
 			{
 				//Draw()
 			}
@@ -248,22 +257,24 @@ void CAdvancedMediaSource::GenerateVideoSample(Windows::Media::Core::MediaStream
 			{
 				if(m_Sources[m_CurrentVideo]->GetOutroType() == EOutroType::FadeOut)
 				{
-					m_Sources[m_CurrentVideo]->SetFading(math_clamp(0.0f, (float)(m_Sources[m_CurrentVideo]->EndTime - m_VideoTimestamp) / m_Sources[m_CurrentVideo]->GetOutroDuration(), 1.0f));
+					m_Sources[m_CurrentVideo]->SetFading(math_clamp(0.0f, (float)(((m_Sources[m_CurrentVideo]->EndTime * m_RateN) / m_RateD) - m_VideoTimestamp) / ((m_Sources[m_CurrentVideo]->GetOutroDuration() * m_RateN) / m_RateD), 1.0f));
 				}
 			}
 
-			m_Sources[m_CurrentVideo]->UpdateBuffers(m_pImmediateContext.Get());
-			m_Sources[m_CurrentVideo]->SetBuffers(m_pImmediateContext.Get());
+			//m_Sources[m_CurrentVideo]->UpdateBuffers(m_pImmediateContext.Get());
+			//m_Sources[m_CurrentVideo]->SetBuffers(m_pImmediateContext.Get());
 				
 						
 			Draw(pInputView.Get(), pOutputView.Get());
 
 			DXUnlock();
 
-			pSample->SetSampleDuration(m_vd.SampleDuration);
+			LONGLONG SampleDuration = (m_vd.SampleDuration * m_RateN) / m_RateD;
+
+			pSample->SetSampleDuration(SampleDuration);
 			pSample->SetSampleTime(m_VideoTimestamp);			
 			RET_IFFAIL(pRequest->SetSample(pSample.Get()))
-			m_VideoTimestamp += m_vd.SampleDuration;
+			m_VideoTimestamp += SampleDuration;
 
 			if(!m_Sources[m_CurrentVideo]->LoadNextFrame())
 			{
@@ -546,12 +557,12 @@ void CAdvancedMediaSource::GenerateVideoSample(Windows::Media::Core::MediaStream
 
 void CAdvancedMediaSource::GenerateAudioSample(Windows::Media::Core::MediaStreamSourceSampleRequest^ request)
 {
+	//return;
 	ComPtr<IMFMediaStreamSourceSampleRequest> pRequest;
 
 	RET_IFFAIL(reinterpret_cast<IInspectable*>(request)->QueryInterface(IID_PPV_ARGS(&pRequest)))
 
 	AutoLock lock(m_critSec);
-	IMFSample* pSample = nullptr;
 
 	if(!m_Initialized)
 	{
@@ -560,17 +571,51 @@ void CAdvancedMediaSource::GenerateAudioSample(Windows::Media::Core::MediaStream
 
 	while(m_CurrentAudio < (int)m_Sources.size())
 	{
+		ComPtr<IMFSample> pSample;
+
 		m_Sources[m_CurrentAudio]->GetAudioSample(&pSample);
 
 		if(pSample != nullptr)
 		{
+
+			//AudioStreamDescriptor^ pStreamDescriptor = dynamic_cast<AudioStreamDescriptor^>(request->StreamDescriptor);
+			//AudioEncodingProperties^ pEncodingProperties;
+
+			//if(pStreamDescriptor != nullptr)
+			//{
+			//	pEncodingProperties = pStreamDescriptor->EncodingProperties;
+			//}
+			//else
+			//{
+			//	return;//throw Platform::Exception::CreateException(E_INVALIDARG, L"Media Request is not for an video sample.");
+			//}
+
+			//unsigned int sr = pEncodingProperties->SampleRate;
+			////pEncodingProperties->SampleRate = 4410;// ((LONGLONG)sr *m_RateN) / m_RateD;
+			//sr = pEncodingProperties->SampleRate;
+
+			//unsigned int br = pEncodingProperties->Bitrate;
+			////pEncodingProperties->Bitrate = 141120;// ((LONGLONG)br *m_RateN) / m_RateD;
+			//br = pEncodingProperties->Bitrate;
+
+			DWORD BufferCount = 0;
+			DWORD TotalLe = 0;
+			ComPtr<IMFMediaBuffer> pBuffer;
+
+			pSample->GetBufferCount(&BufferCount);
+			pSample->GetTotalLength(&TotalLe);
+			pSample->GetBufferByIndex(0, &pBuffer);
+			pBuffer->SetCurrentLength(TotalLe/m_RateD);
+			pSample->GetTotalLength(&TotalLe);
+
 			LONGLONG SampleDuration = 0;
 
 			pSample->GetSampleDuration(&SampleDuration);
-			//pSample->SetSampleDuration();
+			SampleDuration = (SampleDuration * m_RateN) / m_RateD;
+			pSample->SetSampleDuration(SampleDuration);
 			pSample->SetSampleTime(m_AudioTimestamp);
-			pRequest->SetSample(pSample);
-			m_AudioTimestamp += SampleDuration;
+			pRequest->SetSample(pSample.Get());
+			m_AudioTimestamp += SampleDuration;// (SampleDuration * m_RateN) / m_RateD;
 			
 			break;
 		}
@@ -679,8 +724,20 @@ bool CAdvancedMediaSource::InitResources()
 	return true;	
 }
 
-bool CAdvancedMediaSource::CreateInputView(ID3D11Texture2D* pTexture, UINT Index, ID3D11ShaderResourceView** ppView)
+bool CAdvancedMediaSource::CreateInputView(IMFSample* pSample, ID3D11ShaderResourceView** ppView)
 {
+	assert(pSample != nullptr);
+
+	ComPtr<ID3D11Texture2D> pTexture;
+	ComPtr<IMFMediaBuffer> pBuffer;
+	ComPtr<IMFDXGIBuffer> pDXGIBuffer;
+	UINT Index = 0;
+
+	RETFALSE_IFFAIL(pSample->GetBufferByIndex(0, &pBuffer))
+	RETFALSE_IFFAIL(pBuffer.As(&pDXGIBuffer))
+	RETFALSE_IFFAIL(pDXGIBuffer->GetResource(IID_PPV_ARGS(&pTexture)))
+	RETFALSE_IFFAIL(pDXGIBuffer->GetSubresourceIndex(&Index))
+
 	D3D11_TEXTURE2D_DESC textureDesc;
 	D3D11_SHADER_RESOURCE_VIEW_DESC viewDesc;
 
@@ -704,7 +761,7 @@ bool CAdvancedMediaSource::CreateInputView(ID3D11Texture2D* pTexture, UINT Index
 		viewDesc.Texture2D.MipLevels = 1;
 	}
 
-	HRESULT hr = m_pDevice->CreateShaderResourceView(pTexture, &viewDesc, ppView);
+	HRESULT hr = m_pDevice->CreateShaderResourceView(pTexture.Get(), &viewDesc, ppView);
 
 	return hr == S_OK;
 }
@@ -754,7 +811,7 @@ bool CAdvancedMediaSource::Draw(ID3D11ShaderResourceView* pInputView, ID3D11Rend
 	ComPtr<ID3D11ShaderResourceView> pOrigSRV;
 	D3D11_VIEWPORT vpOld;
 	UINT nViewPorts = 1;
-	const FLOAT ColorBlack[4] = {0.0f, 0.0f, 0.0f, 1.0f};	
+	const FLOAT ColorBlack[4] = {1.0f, 0.0f, 1.0f, 1.0f};	
 
 	m_pImmediateContext->IASetInputLayout(m_pQuadLayout.Get());
 	m_pImmediateContext->IASetVertexBuffers(0, 1, m_pBuffers, &m_vbStrides, &m_vbOffsets);
@@ -794,4 +851,17 @@ void CAdvancedMediaSource::DXUnlock()
 	m_pImmediateContext.Reset();
 	m_pDevice.Reset();
 	m_pDXManager->UnlockDevice(m_DeviceHandle, TRUE);
+}
+
+bool CAdvancedMediaSource::SetPlaybackRate(int nominator, int denominator)
+{
+	if(nominator < 1 || denominator < 1)
+	{
+		return false;
+	}
+
+	AutoLock lock(m_critSec);
+
+	m_RateN = nominator;
+	m_RateD = denominator;
 }

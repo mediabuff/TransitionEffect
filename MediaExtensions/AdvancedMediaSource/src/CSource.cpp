@@ -169,14 +169,15 @@ CSource::CSource(IMFDXGIDeviceManager* pDXManager, HANDLE deviceHandle, Platform
 		return;
 	}
 
-	/*ComPtr<IMFRateSupport> rr;
+	ComPtr<IMFRateSupport> rr;
 	ComPtr<IMFRateControl> rr2;
 	float rate = 537.852f;
 	hr = pMediaSource.As(&rr);
 	hr = rr->GetFastestRate(MFRATE_REVERSE, FALSE, &rate);
+	hr = rr->GetFastestRate(MFRATE_FORWARD, FALSE, &rate);
 
 	hr = pMediaSource.As(&rr2);
-	hr = rr2->SetRate(TRUE, -1.0f);*/
+	//hr = rr2->SetRate(FALSE, 2.0f);
 
 	if(pMediaSource->CreatePresentationDescriptor(&pPresentationDesc) != S_OK)
 	{
@@ -244,40 +245,16 @@ bool CSource::LoadNextFrame()
 
 bool CSource::loadNextFrame()
 {
-	m_pTexture = nullptr;
-
-	ComPtr<IMFSample> pSample;
-	ComPtr<IMFMediaBuffer> pBuffer;
-	ComPtr<IMFDXGIBuffer> pDXGIBuffer;
-
 	DWORD ActualStreamIndex = 0;
 	DWORD StreamFlags = 0;
 	LONGLONG SampleTimestamp = 0;
 
-	if(m_pSourceReader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &ActualStreamIndex, &StreamFlags, &SampleTimestamp, &pSample) != S_OK)
+	if(m_pSourceReader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &ActualStreamIndex, &StreamFlags, &SampleTimestamp, &m_pSample) != S_OK)
 	{
 		return false;
 	}
 
-	if(pSample == nullptr)
-	{
-		return false;
-	}
-
-	if(pSample->GetBufferByIndex(0, &pBuffer) != S_OK)
-	{
-		return false;
-	}
-
-	if(pBuffer.As(&pDXGIBuffer) == S_OK)
-	{
-		if(pDXGIBuffer->GetResource(IID_PPV_ARGS(&m_pTexture)) == S_OK)
-		{
-			pDXGIBuffer->GetSubresourceIndex(&m_TexIndex);
-		}
-	}
-
-	return m_pTexture.Get() != nullptr;
+	return m_pSample.Get() != nullptr;
 }
 
 void CSource::GetAudioSample(IMFSample** ppSample)
