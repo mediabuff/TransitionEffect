@@ -17,6 +17,7 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using AdvancedMediaSource;
+using Transition_Effect.Common;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=391641
 
@@ -31,6 +32,8 @@ namespace Transition_Effect
 		MediaStreamSource mss;
 		VideoStreamDescriptor videoDesc;
 
+        NavigationHelper navigationHelper;
+
 		public MainPage()
 		{
 			LoadVideos();
@@ -40,6 +43,7 @@ namespace Transition_Effect
 
 			this.DataContext = this;
 			this.NavigationCacheMode = NavigationCacheMode.Required;
+            navigationHelper = new NavigationHelper(this);
 		}
 
 		private void Apply_Effect(object sender, RoutedEventArgs e)
@@ -152,6 +156,23 @@ namespace Transition_Effect
 
 		public ObservableCollection<string> VideoList { get; set; }
 		public ObservableCollection<Effect> EffectList { get; set; }
+
+        private void Playback_click(object sender, RoutedEventArgs e)
+        {
+           
+            Frame.Navigate(typeof(Playback));
+        }
+
+
+        protected override void OnNavigatedTo(NavigationEventArgs e)
+        {
+            this.navigationHelper.OnNavigatedTo(e);
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            this.navigationHelper.OnNavigatedFrom(e);
+        }
 	}
 }
 

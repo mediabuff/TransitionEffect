@@ -16,6 +16,12 @@
         </ResourceDictionary>
     </Page.Resources>
     
+    <Page.BottomAppBar>
+        <CommandBar>
+            <AppBarButton Icon="Go" Label="Playback" Click="Playback_click" />
+        </CommandBar>
+    </Page.BottomAppBar>
+    
     <Grid>
 
         <Grid.RowDefinitions>
