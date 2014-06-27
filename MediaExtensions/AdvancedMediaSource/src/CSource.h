@@ -3,8 +3,9 @@
 #include <memory>
 #include "pch.h"
 #include "SVideoData.h"
-#include "SVideoShaderData.h"
+#include "SShaderFrameData.h"
 #include "VideoTypes.h"
+#include "Quad.h"
 
 namespace AdvancedMediaSource
 {
@@ -12,7 +13,7 @@ namespace AdvancedMediaSource
 	{
 	public:
 
-		CSource(IMFDXGIDeviceManager* pDXManager, HANDLE deviceHandle, Platform::String^ url, EIntroType intro, UINT32 introDuration, EOutroType outro, UINT32 outroDuration, EVideoEffect videoEffect);
+		CSource(IMFDXGIDeviceManager* pDXManager, Platform::String^ url, EIntroType intro, UINT32 introDuration, EOutroType outro, UINT32 outroDuration, EVideoEffect videoEffect);
 		~CSource();
 
 		bool LoadNextFrame();
@@ -21,7 +22,7 @@ namespace AdvancedMediaSource
 		bool UpdateBuffers(ID3D11DeviceContext* pDXContext);
 		void SetBuffers(ID3D11DeviceContext* pDXContext);
 
-		void SetFading(float fading) { m_vsd.fading = fading; }
+		void SetFading(float fading) { /*m_vsd.fading = fading;*/ }
 		IMFSample* GetSample() { return m_pSample.Get(); }
 		void GetVideoData(SVideoData* vd) { *vd = m_vd; }
 		LONGLONG GetDuration() { return m_vd.Duration; }
@@ -43,21 +44,27 @@ namespace AdvancedMediaSource
 		bool loadNextFrame();
 		void AdjustByHeight(const SVideoData* vd);
 		void AdjustByWidth(const SVideoData* vd);
+		void SetQuad(float dx, float dy);
+
 		static LONGLONG FrameRateToDuration(UINT32 Numerator, UINT32 Denominator);
 
 	private:
 
 		ComPtr<IMFSourceReader> m_pSourceReader;
 		ComPtr<IMFSample> m_pSample;
-		ComPtr<ID3D11Buffer> m_pVDBuffer;
+		ComPtr<ID3D11Buffer> m_pFrameDataCB;
+		ComPtr<ID3D11Buffer> m_pFrameQuadVB;
 		SVideoData m_vd;
-		SVideoShaderData m_vsd;
+		SShaderFrameData m_sfd;
+		SQuad m_FrameQuad;
+		UINT m_vbStrides, m_vbOffsets;
 
 		EVideoEffect m_VideoEffect;
 		SIntro m_Intro; 
 		SOutro m_Outro;
 
 		bool m_Initialized;
+		bool m_FrameQuadBufferValid;
 	};
 
 	typedef std::shared_ptr<CSource> CSourcePtr;

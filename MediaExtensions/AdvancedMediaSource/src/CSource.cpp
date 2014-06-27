@@ -4,7 +4,7 @@
 
 using namespace AdvancedMediaSource;
 
-CSource::CSource(IMFDXGIDeviceManager* pDXManager, HANDLE deviceHandle, Platform::String^ url, EIntroType intro, UINT32 introDuration, EOutroType outro, UINT32 outroDuration, EVideoEffect videoEffect)
+CSource::CSource(IMFDXGIDeviceManager* pDXManager, Platform::String^ url, EIntroType intro, UINT32 introDuration, EOutroType outro, UINT32 outroDuration, EVideoEffect videoEffect)
 	: m_Initialized(false)
 {
 	m_Intro.Type = intro;
@@ -207,22 +207,49 @@ CSource::CSource(IMFDXGIDeviceManager* pDXManager, HANDLE deviceHandle, Platform
 
 	//D3D11_TEXTURE2D_DESC decs;
 	//m_pTexture->GetDesc(&decs);
-
-	// Create buffer for shader
+	
+	HANDLE deviceHandle;
 	ComPtr<ID3D11Device> pDevice;
+
+	RET_IFFAIL(pDXManager->OpenDeviceHandle(&deviceHandle))
+	RET_IFFAIL(pDXManager->LockDevice(deviceHandle, IID_PPV_ARGS(&pDevice), TRUE))
+	
+	// Create buffer for shader
+	
 	D3D11_BUFFER_DESC cbDesc;
 
-	cbDesc.ByteWidth = sizeof(SVideoShaderData);
-	cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+	ZeroMemory(&cbDesc, sizeof(cbDesc));
+	cbDesc.ByteWidth = sizeof(SShaderFrameData);
+	cbDesc.Usage = D3D11_USAGE_DEFAULT;// D3D11_USAGE_DYNAMIC;
 	cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbDesc.CPUAccessFlags = 0;// D3D11_CPU_ACCESS_WRITE;
 	cbDesc.MiscFlags = 0;
 	cbDesc.StructureByteStride = 0;
+		
+	RET_IFFAIL(pDevice->CreateBuffer(&cbDesc, NULL, &m_pFrameDataCB))
 
-	RET_IFFAIL(pDXManager->LockDevice(deviceHandle, IID_PPV_ARGS(&pDevice), TRUE))
-	RET_IFFAIL(pDevice->CreateBuffer(&cbDesc, NULL, &m_pVDBuffer))
+	// Fill Screen Quad
+	D3D11_BUFFER_DESC VBdesc;
+
+	ZeroMemory(&VBdesc, sizeof(VBdesc));
+	VBdesc.Usage = D3D11_USAGE_DYNAMIC;
+	VBdesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	VBdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	VBdesc.MiscFlags = 0;
+	VBdesc.ByteWidth = sizeof(m_FrameQuad);
+	
+	m_vbStrides = sizeof(SVertex);
+	m_vbOffsets = 0;
+
+	if(pDevice->CreateBuffer(&VBdesc, nullptr, &m_pFrameQuadVB) != S_OK)
+	{
+		return;
+	}
+	
 	pDevice.Reset();
-	pDXManager->UnlockDevice(deviceHandle, TRUE);
+	pDXManager->UnlockDevice(deviceHandle, FALSE);
+
+	m_FrameQuadBufferValid = false;
 
 	//Done
 	m_Initialized = true;
@@ -288,8 +315,40 @@ bool CSource::InitRuntimeVariables(ID3D11DeviceContext* pDXContext, const SVideo
 	{
 		AdjustByHeight(vd);
 	}
+
+	// 2 vertices (Triangles), covering the whole Viewport, with the input video mapped as a texture
+	//const ScreenVertex svDefault[4] =
+	//{
+	//	//   x      y     z     w         u     v
+	//	{ { -1.0f, 1.0f, 0.5f, 1.0f }, { 0.0f, 0.0f } }, // 0
+	//	{ { 1.0f, 1.0f, 0.5f, 1.0f }, { 1.0f, 0.0f } }, // 1
+	//	{ { -1.0f, -1.0f, 0.5f, 1.0f }, { 0.0f, 1.0f } }, // 2
+	//	{ { 1.0f, -1.0f, 0.5f, 1.0f }, { 1.0f, 1.0f } }  // 3
+	//}; asas
+
+	m_FrameQuad.v[0].z = 0.5f;
+	m_FrameQuad.v[0].w = 1.0f;
+	m_FrameQuad.v[0].u = 0.0f;
+	m_FrameQuad.v[0].v = 0.0f;
+
+	m_FrameQuad.v[1].z = 0.5f;
+	m_FrameQuad.v[1].w = 1.0f;
+	m_FrameQuad.v[1].u = 1.0f;
+	m_FrameQuad.v[1].v = 0.0f;
+
+	m_FrameQuad.v[2].z = 0.5f;
+	m_FrameQuad.v[2].w = 1.0f;
+	m_FrameQuad.v[2].u = 0.0f;
+	m_FrameQuad.v[2].v = 1.0f;
+
+	m_FrameQuad.v[3].z = 0.5f;
+	m_FrameQuad.v[3].w = 1.0f;
+	m_FrameQuad.v[3].u = 1.0f;
+	m_FrameQuad.v[3].v = 1.0f;
 	
-	m_vsd.fading = 1.0f;
+	//m_vsd.fading = 1.0f;
+
+	m_FrameQuadBufferValid = false;
 
 	StartTime = beginningTime;
 	EndTime = StartTime + m_vd.Duration;
@@ -303,18 +362,33 @@ bool CSource::InitRuntimeVariables(ID3D11DeviceContext* pDXContext, const SVideo
 
 bool CSource::UpdateBuffers(ID3D11DeviceContext* pDXContext)
 {
+	HRESULT hr;
 	D3D11_MAPPED_SUBRESOURCE mappedResource;
 
-	RETFALSE_IFFAIL(pDXContext->Map(m_pVDBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource))
-	memcpy(mappedResource.pData, &m_vsd, sizeof(m_vsd));
-	pDXContext->Unmap(m_pVDBuffer.Get(), 0);
+	//RETFALSE_IFFAIL(pDXContext->Map(m_pConstBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource))
+	//memcpy(mappedResource.pData, &m_vsd, sizeof(m_vsd));
+	//pDXContext->Unmap(m_pConstBuffer.Get(), 0);
+
+	//pDXContext->UpdateSubresource(m_pConstBuffer.Get(), 0, nullptr, &m_vsd, 0, 0);
+	//pDXContext->UpdateSubresource(m_pFrameQuadVB.Get(), 0, nullptr, &m_FrameQuad, 0, 0);
+
+	if(!m_FrameQuadBufferValid)
+	{
+		RETFALSE_IFFAIL(pDXContext->Map(m_pFrameQuadVB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource))
+		memcpy(mappedResource.pData, &m_FrameQuad, sizeof(m_FrameQuad));
+		pDXContext->Unmap(m_pFrameQuadVB.Get(), 0);
+
+		m_FrameQuadBufferValid = true;
+	}
 
 	return true;
 }
 
 void CSource::SetBuffers(ID3D11DeviceContext* pDXContext)
 {
-	pDXContext->PSSetConstantBuffers(0, 1, m_pVDBuffer.GetAddressOf());
+	//pDXContext->PSSetConstantBuffers(0, 1, m_pConstBuffer.GetAddressOf());
+
+	pDXContext->IASetVertexBuffers(0, 1, m_pFrameQuadVB.GetAddressOf(), &m_vbStrides, &m_vbOffsets);
 }
 
 void CSource::AdjustByHeight(const SVideoData* vd)
@@ -332,10 +406,7 @@ void CSource::AdjustByHeight(const SVideoData* vd)
 		width = (float) m_vd.Width;
 	}
 
-	m_vsd.scale[0] = width / vd->Width;
-	m_vsd.scale[1] = height / vd->Height;
-	m_vsd.offset[0] = ((float)vd->Width - width) / vd->Width / 2.0f;
-	m_vsd.offset[1] = ((float)vd->Height - height) / vd->Height / 2.0f;
+	SetQuad(((float)vd->Width - width) / vd->Width / 2.0f, ((float)vd->Height - height) / vd->Height / 2.0f);
 }
 
 void CSource::AdjustByWidth(const SVideoData* vd)
@@ -353,10 +424,32 @@ void CSource::AdjustByWidth(const SVideoData* vd)
 		width = (float) m_vd.Width;
 	}
 
-	m_vsd.scale[0] = width / vd->Width;
-	m_vsd.scale[1] = height / vd->Height;
-	m_vsd.offset[0] = ((float)vd->Width - width) / vd->Width / 2.0f;
-	m_vsd.offset[1] = ((float)vd->Height - height) / vd->Height / 2.0f;
+	SetQuad(((float)vd->Width - width) / vd->Width / 2.0f, ((float)vd->Height - height) / vd->Height / 2.0f);
+}
+
+void CSource::SetQuad(float dx, float dy)
+{
+	// 2 vertices (Triangles), covering the whole Viewport, with the input video mapped as a texture
+	//const ScreenVertex svDefault[4] =
+	//{
+	//	//   x      y     z     w         u     v
+	//	{ { -1.0f, 1.0f, 0.5f, 1.0f }, { 0.0f, 0.0f } }, // 0
+	//	{ { 1.0f, 1.0f, 0.5f, 1.0f }, { 1.0f, 0.0f } }, // 1
+	//	{ { -1.0f, -1.0f, 0.5f, 1.0f }, { 0.0f, 1.0f } }, // 2
+	//	{ { 1.0f, -1.0f, 0.5f, 1.0f }, { 1.0f, 1.0f } }  // 3
+	//}; 
+
+	m_FrameQuad.v[0].x = -1.0f + dx;
+	m_FrameQuad.v[0].y = 1.0f - dy;
+
+	m_FrameQuad.v[1].x = 1.0f - dx;
+	m_FrameQuad.v[1].y = 1.0f - dy;
+
+	m_FrameQuad.v[2].x = -1.0f + dx;
+	m_FrameQuad.v[2].y = -1.0f + dy;
+
+	m_FrameQuad.v[3].x = 1.0f - dx;
+	m_FrameQuad.v[3].y = -1.0f + dy;
 }
 
 LONGLONG CSource::FrameRateToDuration(UINT32 Numerator, UINT32 Denominator)

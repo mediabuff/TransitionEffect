@@ -41,7 +41,10 @@
     <ClInclude Include="src\VideoTypes.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\SVideoShaderData.h">
+    <ClInclude Include="src\Quad.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\SShaderFrameData.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

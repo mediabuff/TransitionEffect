@@ -49,7 +49,6 @@ namespace AdvancedMediaSource
 		HANDLE m_DeviceHandle;
 		ComPtr<ID3D11DeviceContext> m_pContext;
 		ComPtr<ID3D11SamplerState> m_pSampleStateLinear;
-		ComPtr<ID3D11Buffer> m_pScreenQuadVB;
 		ComPtr<ID3D11InputLayout> m_pQuadLayout;
 		ComPtr<ID3D11VertexShader> m_pVertexShader;
 		ComPtr<ID3D11PixelShader> m_pPixelShader;
@@ -57,14 +56,14 @@ namespace AdvancedMediaSource
 		// Runtime draw variables
 		ComPtr<ID3D11Device> m_pDevice;
 		ComPtr<ID3D11DeviceContext> m_pImmediateContext;
-		ID3D11Buffer* m_pBuffers[1];
-		UINT m_vbStrides;
-		UINT m_vbOffsets;
+		//ID3D11Buffer* m_pBuffers[1];
+		//UINT m_vbStrides;
+		//UINT m_vbOffsets;
 		ID3D11SamplerState* m_pSamplers[1];
 		D3D11_VIEWPORT m_Viewport;
 
 		SVideoData m_vd;
-		ComPtr<IMFVideoSampleAllocator> m_pVideoSamplesAllocator;		
+		ComPtr<IMFVideoSampleAllocatorEx> m_pVideoSamplesAllocator;		
 		LONGLONG m_VideoTimestamp;
 		LONGLONG m_AudioTimestamp;
 		int m_RateN, m_RateD; // Playback rate nominator and denominator

@@ -2,8 +2,8 @@
 
 #include "pch.h"
 
-#define RET_IFFAIL(expr) if((expr) != S_OK) { return; }
-#define RETFALSE_IFFAIL(expr) if((expr) != S_OK) { return false; }
+#define RET_IFFAIL(expr) if((hr = (expr)) != S_OK) { return; }
+#define RETFALSE_IFFAIL(expr) if((hr = (expr)) != S_OK) { return false; }
 
 #define RET_IFFALSE(expr) if(!(expr)) { return; }
 #define RETFALSE_IFFALSE(expr) if(!(expr)) { return false; }

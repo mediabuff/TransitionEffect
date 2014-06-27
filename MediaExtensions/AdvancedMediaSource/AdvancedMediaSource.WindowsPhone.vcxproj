@@ -33,8 +33,9 @@
     <ClInclude Include="src\CSource.h" />
     <ClInclude Include="src\helpers.h" />
     <ClInclude Include="src\pch.h" />
+    <ClInclude Include="src\Quad.h" />
     <ClInclude Include="src\SVideoData.h" />
-    <ClInclude Include="src\SVideoShaderData.h" />
+    <ClInclude Include="src\SShaderFrameData.h" />
     <ClInclude Include="src\VideoTypes.h" />
   </ItemGroup>
   <ItemGroup>
