@@ -2,7 +2,6 @@
 
 #include <memory>
 #include "SVideoData.h"
-#include "SShaderFrameData.h"
 #include "VideoTypes.h"
 
 namespace AdvancedMediaSource

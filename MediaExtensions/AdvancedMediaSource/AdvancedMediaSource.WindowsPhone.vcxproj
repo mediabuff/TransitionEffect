@@ -39,7 +39,6 @@
     <ClInclude Include="src\pch.h" />
     <ClInclude Include="src\FrameMixer.h" />
     <ClInclude Include="src\SVideoData.h" />
-    <ClInclude Include="src\SShaderFrameData.h" />
     <ClInclude Include="src\TextureLock.h" />
     <ClInclude Include="src\TransitionManager.h" />
     <ClInclude Include="src\VideoBufferLock.h" />

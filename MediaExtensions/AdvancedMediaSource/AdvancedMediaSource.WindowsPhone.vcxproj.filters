@@ -47,9 +47,6 @@
     <ClInclude Include="src\pch.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\SShaderFrameData.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="src\SVideoData.h">
       <Filter>src</Filter>
     </ClInclude>
