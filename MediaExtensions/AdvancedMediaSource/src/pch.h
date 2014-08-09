@@ -14,8 +14,11 @@
 #include <mfapi.h>
 #include <mferror.h>
 #include <Mfreadwrite.h>
-#include <d3d11.h>
-#include <D2d1helper.h>
+#include <d3d11_2.h>
+#include <d2d1_2.h>
+#include <DirectXMath.h>
+#include <dwrite_2.h>
+#include <wincodec.h>
 
 #include <assert.h>
 
@@ -33,6 +36,9 @@
 
 #include <ppltasks.h>
 
+#include "Common.h"
+
 using namespace Platform;
 using namespace Microsoft::WRL;
 using namespace Microsoft::WRL::Wrappers;
+using namespace Windows::Media::Core;

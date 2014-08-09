@@ -1,73 +1,92 @@
 ﻿#pragma once
 
 #include <vector>
-#include "pch.h"
 #include "CritSec.h"
 #include "CSource.h"
+#include "FrameMixer.h"
+#include "TransitionManager.h"
+
+//-----------------------------------------------------------------------------
+// Constant buffer data
+//-----------------------------------------------------------------------------
+struct ModelViewProjectionConstantBuffer
+{
+    DirectX::XMFLOAT4X4 model;
+    DirectX::XMFLOAT4X4 view;
+    DirectX::XMFLOAT4X4 projection;
+};
+
+//-----------------------------------------------------------------------------
+// Per-vertex data
+//-----------------------------------------------------------------------------
+struct VertexPositionColor
+{
+    DirectX::XMFLOAT3 pos;
+    DirectX::XMFLOAT3 color;
+};
 
 namespace AdvancedMediaSource
 {
-	public ref class CAdvancedMediaSource sealed
-	{
-	public:
+    public ref class CAdvancedMediaSource sealed
+    {
+    public:
 
-		CAdvancedMediaSource();
-		virtual ~CAdvancedMediaSource();
+        CAdvancedMediaSource();
+        virtual ~CAdvancedMediaSource();
 
-		bool AddVideo(Platform::String^ url, EIntroType intro, UINT32 introDuration, EOutroType outro, UINT32 outroDuration, EVideoEffect videoEffect);
-		void GetVideoData(SVideoData* vd);
-		bool IsInitialized() { return m_Initialized; }
+        void ResetTimeline();
+        void AddVideo(Platform::String^ url);
+        void AddTransitionEffect(TransitionEffectType type, float length_in_second);
 
-		bool OnStart(Windows::Media::Core::VideoStreamDescriptor^ videoDesc);
-		void GenerateVideoSample(Windows::Media::Core::MediaStreamSourceSampleRequest^ request);
-		void GenerateAudioSample(Windows::Media::Core::MediaStreamSourceSampleRequest^ request);
-		bool SetPlaybackRate(int nominator, int denominator);
+        void Initialize(MediaStreamSource ^ mss, VideoStreamDescriptor ^ videoDesc, AudioStreamDescriptor ^ audioDesc);
 
-	private:
+        void GenerateVideoSample(Windows::Media::Core::MediaStreamSourceSampleRequest ^ request);
+        void GenerateAudioSample(Windows::Media::Core::MediaStreamSourceSampleRequest ^ request);
 
-		bool InitResources();
-		bool DXLock();
-		void DXUnlock();
-		bool CreateInputView(IMFSample* pSample, ID3D11ShaderResourceView** ppView);
-		bool CreateOutputView(IMFSample* pSample, ID3D11RenderTargetView** ppView);
-		bool Draw(ID3D11ShaderResourceView* pInputView, ID3D11RenderTargetView* pOutputView);
-		
-	private:
+    private:
+        HRESULT GenerateFrame(UINT32 ui32Width, UINT32 ui32Height, int iFrameRotation, IMFMediaBuffer * ppBuffer);
+        HRESULT GenerateFrame2(UINT32 ui32Width, UINT32 ui32Height, ULONGLONG curr_time_stamp, IMFMediaBuffer * ppBuffer);
+        HRESULT ConvertPropertiesToMediaType(_In_ Windows::Media::MediaProperties::IMediaEncodingProperties ^mep, _Outptr_ IMFMediaType **ppMT);
+        static HRESULT AddAttribute(_In_ GUID guidKey, _In_ Windows::Foundation::IPropertyValue ^value, _In_ IMFAttributes *pAttr);
+        bool InitialSourceSteams();
+        bool InitializeSource();
+        void ProcessOutput(IMFMediaBuffer *pIn, IMFMediaBuffer *pOut);
+        void ProcessOutput(IMFMediaBuffer *pOut);
 
-		std::vector<CSourcePtr> m_Sources;
-		int m_CurrentVideo;
-		int m_CurrentAudio; // MediaStreamSource requests (and buffers) audio and video samples separately. 
+        ComPtr<IMFVideoSampleAllocator> m_spSampleAllocator;
+        ComPtr<IMFDXGIDeviceManager> m_spDeviceManager;
+        ComPtr<ID3D11Device> m_spD3DDevice;
+        ComPtr<ID3D11DeviceContext> m_spD3DContext;
+        HANDLE m_hDevice;
+        ULONGLONG m_ulVideoTimestamp;
+        ULONGLONG m_ulAudioTimestamp;
+        int m_iVideoFrameNumber;
+        UINT32 m_outputWidth;
+        UINT32 m_outputHeight;
 
-		CritSec m_critSec;
 
-		// DirectX manager
-		ComPtr<IMFDXGIDeviceManager> m_pDXManager;		
-		UINT m_ResetToken;
+        CritSec m_critSec;
 
-		// DX Device
-		ComPtr<ID3D11Device> m_pDX11Device;
-		HANDLE m_DeviceHandle;
-		ComPtr<ID3D11DeviceContext> m_pContext;
-		ComPtr<ID3D11SamplerState> m_pSampleStateLinear;
-		ComPtr<ID3D11InputLayout> m_pQuadLayout;
-		ComPtr<ID3D11VertexShader> m_pVertexShader;
-		ComPtr<ID3D11PixelShader> m_pPixelShader;
+        bool m_SourceInitialized;
+        bool m_EndOfStream;
+        std::vector<Platform::String^> m_VideoList;
+        std::vector<TransitionEffect> m_TransitionEffectList;
+        std::vector<CSourcePtr> m_Sources;
+        int m_CurrentVideo;
+        int m_CurrentAudio; // MediaStreamSource requests (and buffers) audio and video samples separately. 
 
-		// Runtime draw variables
-		ComPtr<ID3D11Device> m_pDevice;
-		ComPtr<ID3D11DeviceContext> m_pImmediateContext;
-		//ID3D11Buffer* m_pBuffers[1];
-		//UINT m_vbStrides;
-		//UINT m_vbOffsets;
-		ID3D11SamplerState* m_pSamplers[1];
-		D3D11_VIEWPORT m_Viewport;
+        ComPtr<ID3D11Texture2D> m_spInBufferTex;
+        ComPtr<ID3D11Texture2D> m_spOutBufferTex;
+        ComPtr<ID3D11Texture2D> m_spOutBufferStage;
 
-		SVideoData m_vd;
-		ComPtr<IMFVideoSampleAllocatorEx> m_pVideoSamplesAllocator;		
-		LONGLONG m_VideoTimestamp;
-		LONGLONG m_AudioTimestamp;
-		int m_RateN, m_RateD; // Playback rate nominator and denominator
+        // Streaming
+        ComPtr<IMFMediaType> m_spInputType;         // Input media type.
+        ComPtr<IMFMediaType> m_spOutputType;        // Output media type.
+        ComPtr<IMFMediaType> m_spAudioType;        // Output media type.
+        
+        // Transform
+        FrameMixer ^m_frameMixer;
 
-		bool m_Initialized;		
-	};
+        TransitionManager m_transition_manager;
+    };
 }

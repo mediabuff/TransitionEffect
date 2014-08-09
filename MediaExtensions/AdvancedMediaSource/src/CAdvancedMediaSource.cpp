@@ -1,6 +1,14 @@
 ﻿#include "pch.h"
 #include "CAdvancedMediaSource.h"
-#include "helpers.h"
+#include "TextureLock.h"
+#include "VideoBufferLock.h"
+#include "FrameMixer.h"
+
+#pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "dxguid.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "dwrite.lib")
+#pragma comment(lib, "windowscodecs.lib")
 
 using namespace AdvancedMediaSource;
 using namespace Platform;
@@ -8,915 +16,980 @@ using namespace Windows::Media::Core;
 using namespace Windows::Media::MediaProperties;
 using namespace Windows::Foundation;
 
+using namespace DirectX;
+
 CAdvancedMediaSource::CAdvancedMediaSource()
+    : m_hDevice(nullptr)
+    , m_ulVideoTimestamp(0)
+    , m_iVideoFrameNumber(0)
+    , m_SourceInitialized(false)
+    , m_EndOfStream(false)
+    , m_outputWidth(0)
+    , m_outputHeight(0)
 {
-	m_Initialized = false;
-	m_ResetToken = 0;
-	m_RateN = 1;
-	m_RateD = 1;
 
-	HRESULT hr;
-
-	if(MFStartup(MF_VERSION) != S_OK)
-	{
-		return;
-	}
-	
-	if(MFCreateDXGIDeviceManager(&m_ResetToken, &m_pDXManager) != S_OK)
-	{
-		return;
-	}
-
-	D3D_FEATURE_LEVEL maxSupportedLevelByDevice = D3D_FEATURE_LEVEL_10_0;
-	D3D_FEATURE_LEVEL rgFeatureLevels[] = 
-	{
-		D3D_FEATURE_LEVEL_11_1,
-		D3D_FEATURE_LEVEL_11_0,
-		D3D_FEATURE_LEVEL_10_1,
-		D3D_FEATURE_LEVEL_10_0,
-		D3D_FEATURE_LEVEL_9_3,
-		D3D_FEATURE_LEVEL_9_2,
-		D3D_FEATURE_LEVEL_9_1
-	};
-
-	if((hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT, rgFeatureLevels, ARRAYSIZE(rgFeatureLevels), D3D11_SDK_VERSION, &m_pDX11Device, &maxSupportedLevelByDevice, NULL)) != S_OK)
-	{
-		return;
-	}	
-
-	unsigned long ref = m_pDX11Device.Get()->AddRef() - 1;
-	m_pDX11Device.Get()->Release();
-
-	if(m_pDXManager->ResetDevice(m_pDX11Device.Get(), m_ResetToken) != S_OK)
-	{
-		return;
-	}
-
-	ref = m_pDX11Device.Get()->AddRef() - 1;
-	m_pDX11Device.Get()->Release();
-
-	if(m_pDXManager->OpenDeviceHandle(&m_DeviceHandle) != S_OK)
-	{
-		return;
-	}
-
-	ref = m_pDX11Device.Get()->AddRef() - 1;
-	m_pDX11Device.Get()->Release();
-
-	if(!InitResources())
-	{
-		return;
-	}
-
-	ref = m_pDX11Device.Get()->AddRef() - 1;
-	m_pDX11Device.Get()->Release();
-
-
-	/*ComPtr<IMFMediaType> pType;
-
-	if(MFCreateMediaType(&pType) != S_OK)
-	{
-	return;
-	}
-
-	pType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-	pType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
-
-	HRESULT hr;*/
-
-	m_Initialized = true;
 }
 
 CAdvancedMediaSource::~CAdvancedMediaSource()
 {
-	m_Sources.clear();
+    if (m_spDeviceManager.Get() != nullptr && m_hDevice != nullptr)
+    {
+        m_spDeviceManager->CloseDeviceHandle(m_hDevice);
+        m_hDevice = nullptr;
+    }
 
-	if(m_pVideoSamplesAllocator != nullptr)
-	{
-		m_pVideoSamplesAllocator->UninitializeSampleAllocator();
-	}
+    if (m_spSampleAllocator != nullptr)
+    {
+        m_spSampleAllocator->UninitializeSampleAllocator();
+    }
 
-	m_pDXManager->CloseDeviceHandle(m_DeviceHandle);
-
-	MFShutdown();
+    m_Sources.clear();
 }
 
-bool CAdvancedMediaSource::AddVideo(Platform::String^ url, EIntroType intro, UINT32 introDuration, EOutroType outro, UINT32 outroDuration, EVideoEffect videoEffect)
+void CAdvancedMediaSource::Initialize(MediaStreamSource ^ mss, VideoStreamDescriptor ^ videoDesc, AudioStreamDescriptor ^ audioDesc)
 {
-	AutoLock lock(m_critSec);
-	SVideoData vd;
-	
-	CSourcePtr pV(new CSource(m_pDXManager.Get(), url, intro, introDuration, outro, outroDuration, videoEffect));
+    ComPtr<IMFDXGIDeviceManagerSource> spDeviceManagerSource;
 
-	if(!pV->IsInitialized())
-	{
-		return false;
-	}
+    HRESULT hr = reinterpret_cast<IInspectable*>(mss)->QueryInterface(spDeviceManagerSource.GetAddressOf());
 
-	pV->GetVideoData(&vd);
+    if (m_spDeviceManager == nullptr)
+    {
+        if (SUCCEEDED(hr))
+        {
+            hr = spDeviceManagerSource->GetManager(m_spDeviceManager.ReleaseAndGetAddressOf());
+            if (FAILED(hr))
+            {
+                UINT uiToken = 0;
+                hr = MFCreateDXGIDeviceManager(&uiToken, m_spDeviceManager.ReleaseAndGetAddressOf());
+                if (SUCCEEDED(hr))
+                {
+                    ComPtr<ID3D11Device> spDevice;
+                    D3D_FEATURE_LEVEL maxSupportedLevelByDevice = D3D_FEATURE_LEVEL_9_1;
+                    D3D_FEATURE_LEVEL rgFeatureLevels[] = {
+                        D3D_FEATURE_LEVEL_11_1,
+                        D3D_FEATURE_LEVEL_11_0,
+                        D3D_FEATURE_LEVEL_10_1,
+                        D3D_FEATURE_LEVEL_10_0,
+                        D3D_FEATURE_LEVEL_9_3,
+                        D3D_FEATURE_LEVEL_9_2,
+                        D3D_FEATURE_LEVEL_9_1
+                    };
 
-	if(m_Sources.size() == 0)
-	{
-		m_vd = vd;
-	}
-	else if((vd.Width * vd.Height) < (m_vd.Width * m_vd.Height))
-	{
-		bool HasAudio = m_vd.HasAudio | vd.HasAudio;
-		m_vd = vd;
-		m_vd.HasAudio = HasAudio;
-	}
+                    hr = D3D11CreateDevice(nullptr,
+                        D3D_DRIVER_TYPE_WARP,
+                        nullptr,
+                        D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                        rgFeatureLevels,
+                        ARRAYSIZE(rgFeatureLevels),
+                        D3D11_SDK_VERSION,
+                        spDevice.ReleaseAndGetAddressOf(),
+                        &maxSupportedLevelByDevice,
+                        nullptr);
 
-	m_Sources.push_back(pV);
+                    if (SUCCEEDED(hr))
+                    {
+                        hr = m_spDeviceManager->ResetDevice(spDevice.Get(), uiToken);
+                    }
+                }
+            }
+        }
 
-	return true;
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spDeviceManager->OpenDeviceHandle(&m_hDevice);
+        }
+    }
+
+    if (SUCCEEDED(hr) && m_spSampleAllocator == nullptr)
+    {
+        ComPtr<IMFMediaType> spVideoMT;
+        ComPtr<IMFMediaType> spAudioMT;
+
+        if (SUCCEEDED(hr))
+        {
+            hr = ConvertPropertiesToMediaType(videoDesc->EncodingProperties, spVideoMT.GetAddressOf());
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = MFGetAttributeSize(spVideoMT.Get(), MF_MT_FRAME_SIZE, &m_outputWidth, &m_outputHeight);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = ConvertPropertiesToMediaType(audioDesc->EncodingProperties, spAudioMT.GetAddressOf());
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = MFCreateVideoSampleAllocatorEx(IID_PPV_ARGS(m_spSampleAllocator.ReleaseAndGetAddressOf()));
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSampleAllocator->SetDirectXManager(m_spDeviceManager.Get());
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = m_spSampleAllocator->InitializeSampleAllocator(60, spVideoMT.Get());
+        }
+
+        m_spOutputType = spVideoMT;
+        m_spAudioType = spAudioMT;
+    }
+
+    // We reset each time we are initialized
+    m_ulVideoTimestamp = 0;
+    m_ulAudioTimestamp = 0;
+    
+    m_frameMixer = ref new FrameMixer();
+
+    if (!InitialSourceSteams())
+    {
+        hr = E_FAIL;
+    }
+
+    if (FAILED(hr))
+    {
+        throw Platform::Exception::CreateException(hr, L"Unable to initialize resources for the sample generator.");
+    }
 }
 
-void CAdvancedMediaSource::GetVideoData(SVideoData* vd) 
-{ 
-	AutoLock lock(m_critSec); 
-	
-	*vd = m_vd; 
-}
-
-bool CAdvancedMediaSource::OnStart(Windows::Media::Core::VideoStreamDescriptor^ videoDesc)
+void CAdvancedMediaSource::ResetTimeline()
 {
-	AutoLock lock(m_critSec);
-
-	if(!m_Initialized)
-	{
-		return false;
-	}
-
-	m_Initialized = false; // "OnStart" is a final part of initialization, so we reset m_Initialized
-
-	HRESULT hr;
-	ComPtr<IMFMediaType> pOutputType;
-
-	RETFALSE_IFFAIL(MFCreateMediaType(&pOutputType))
-
-	RETFALSE_IFFAIL(pOutputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video))
-	RETFALSE_IFFAIL(pOutputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_ARGB32))// MFVideoFormat_NV12))
-	RETFALSE_IFFAIL(pOutputType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE))
-	RETFALSE_IFFAIL(pOutputType->SetUINT32(MF_MT_COMPRESSED, FALSE))
-	RETFALSE_IFFAIL(pOutputType->SetUINT32(MF_MT_FIXED_SIZE_SAMPLES, TRUE))
-	RETFALSE_IFFAIL(pOutputType->SetUINT32(MF_MT_SAMPLE_SIZE, m_vd.SampleSize))
-	RETFALSE_IFFAIL(pOutputType->SetUINT32(MF_MT_DEFAULT_STRIDE, m_vd.Stride))
-	RETFALSE_IFFAIL(pOutputType->SetUINT32(MF_MT_DRM_FLAGS, MFVideoDRMFlag_None))
-	RETFALSE_IFFAIL(MFSetAttributeRatio(pOutputType.Get(), MF_MT_FRAME_RATE, m_vd.Numerator, m_vd.Denominator))
-	RETFALSE_IFFAIL(MFSetAttributeSize(pOutputType.Get(), MF_MT_FRAME_SIZE, m_vd.Width, m_vd.Height))
-	RETFALSE_IFFAIL(pOutputType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive))
-	RETFALSE_IFFAIL(MFSetAttributeRatio(pOutputType.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1))
-
-
-	ComPtr<IMFAttributes> pOutputAttributes;
-
-	RETFALSE_IFFAIL(MFCreateAttributes(&pOutputAttributes, 4));
-	RETFALSE_IFFAIL(pOutputAttributes->SetUINT32(MF_SA_D3D11_BINDFLAGS, D3D11_BIND_RENDER_TARGET));
-	RETFALSE_IFFAIL(pOutputAttributes->SetUINT32(MF_SA_BUFFERS_PER_SAMPLE, 1));
-	RETFALSE_IFFAIL(pOutputAttributes->SetUINT32(MF_SA_D3D11_USAGE, D3D11_USAGE_DEFAULT));
-	//RETFALSE_IFFAIL(pOutputAttributes->SetUINT32(MF_SA_D3D11_SHARED, TRUE))
-
-	RETFALSE_IFFAIL(MFCreateVideoSampleAllocatorEx(IID_PPV_ARGS(&m_pVideoSamplesAllocator)))
-	RETFALSE_IFFAIL(m_pVideoSamplesAllocator->SetDirectXManager(m_pDXManager.Get()))
-	RETFALSE_IFFAIL(m_pVideoSamplesAllocator->InitializeSampleAllocatorEx(10, 60, pOutputAttributes.Get(), pOutputType.Get()))
-
-
-	//test
-	//ComPtr<IMFSample> pSample;
-	//ComPtr<IMFMediaBuffer> pBuffer;
-	//ComPtr<ID3D11Texture2D> m_pTexture;
-	//ComPtr<IMFDXGIBuffer> pDXGIBuffer;
-	//UINT m_TexIndex;
-	//RETFALSE_IFFAIL(m_pVideoSamplesAllocator->AllocateSample(&pSample))
-	//RETFALSE_IFFAIL(pSample->GetBufferByIndex(0, &pBuffer))
-	//if(pBuffer.As(&pDXGIBuffer) == S_OK)
-	//{
-	//	if(pDXGIBuffer->GetResource(IID_PPV_ARGS(&m_pTexture)) == S_OK)
-	//	{
-	//		pDXGIBuffer->GetSubresourceIndex(&m_TexIndex);
-	//	}
-	//}
-
-	//D3D11_TEXTURE2D_DESC decs;
-	//m_pTexture->GetDesc(&decs);
-
-	RETFALSE_IFFALSE(DXLock())
-
-	LONGLONG tmpTime = 0;
-	
-	for(int i = 0; i < (int)m_Sources.size(); i++)
-	{
-		m_Sources[i]->InitRuntimeVariables(m_pImmediateContext.Get(), &m_vd, tmpTime);
-		
-		tmpTime += m_Sources[i]->GetDuration();
-	}
-
-	DXUnlock();
-
-	m_CurrentAudio = 0;
-	m_CurrentVideo = 0;
-	m_VideoTimestamp = 0;
-	m_AudioTimestamp = 0;
-
-	// -----
-	m_Viewport.Width = (float) m_vd.Width;
-	m_Viewport.Height = (float) m_vd.Height;
-	
-	
-	m_Initialized = true;
-	return true;
-
-	// throw Platform::Exception::CreateException(E_INVALIDARG, L"Unable to initialize resources for the sample generator.");
+    m_VideoList.clear();
+    m_TransitionEffectList.clear();
+    m_ulVideoTimestamp = 0;
+    m_ulAudioTimestamp = 0;
+    m_Sources.clear();
 }
 
-void CAdvancedMediaSource::GenerateVideoSample(Windows::Media::Core::MediaStreamSourceSampleRequest^ request)
+void CAdvancedMediaSource::AddVideo(Platform::String^ url)
 {
-	ComPtr<IMFMediaStreamSourceSampleRequest> pRequest;
-	VideoEncodingProperties^ pEncodingProperties;
-	HRESULT hr = (request != nullptr) ? S_OK : E_POINTER;
-	UINT32 ui32Height = 0;
-	UINT32 ui32Width = 0;
-	ULONGLONG ulTimeSpan = 0;
-	
-	RET_IFFAIL(reinterpret_cast<IInspectable*>(request)->QueryInterface(IID_PPV_ARGS(&pRequest)))
-
-	AutoLock lock(m_critSec);
-
-	if(!m_Initialized)
-	{
-		return;
-	}
-
-	if(m_CurrentVideo < (int) m_Sources.size())
-	{
-		if(m_Sources[m_CurrentVideo]->HasFrameLoaded())
-		{		
-			ComPtr<ID3D11ShaderResourceView> pInputView;
-			ComPtr<ID3D11RenderTargetView> pOutputView;
-			ComPtr<IMFSample> pSample;
-			HRESULT hr = S_OK;
-			
-			if(!DXLock())
-			{
-				return;
-			}
-
-			if((hr = m_pVideoSamplesAllocator->AllocateSample(&pSample)) != S_OK)
-			{
-				return;
-			}
-			if(pSample.Get() == nullptr)
-			{
-				return;
-			}
-			
-			if(!CreateOutputView(pSample.Get(), &pOutputView))
-			{
-				return;
-			}
-			
-			if(!(CreateInputView(m_Sources[m_CurrentVideo]->GetSample(), &pInputView)))
-			{
-				return;
-			}
-
-			if(m_VideoTimestamp < ((m_Sources[m_CurrentVideo]->IntroTime * m_RateN) / m_RateD))
-			{
-				if(m_Sources[m_CurrentVideo]->GetIntroType() == EIntroType::FadeIn)
-				{
-					m_Sources[m_CurrentVideo]->SetFading(math_clamp(0.0f, (float)(m_VideoTimestamp - ((m_Sources[m_CurrentVideo]->StartTime * m_RateN) / m_RateD)) / ((m_Sources[m_CurrentVideo]->GetIntroDuration() * m_RateN) / m_RateD), 1.0f));
-				}
-			}
-			else if(m_VideoTimestamp < ((m_Sources[m_CurrentVideo]->OutroTime * m_RateN) / m_RateD))
-			{
-				//Draw()
-			}
-			else
-			{
-				if(m_Sources[m_CurrentVideo]->GetOutroType() == EOutroType::FadeOut)
-				{
-					m_Sources[m_CurrentVideo]->SetFading(math_clamp(0.0f, (float)(((m_Sources[m_CurrentVideo]->EndTime * m_RateN) / m_RateD) - m_VideoTimestamp) / ((m_Sources[m_CurrentVideo]->GetOutroDuration() * m_RateN) / m_RateD), 1.0f));
-				}
-			}
-
-			m_Sources[m_CurrentVideo]->UpdateBuffers(m_pImmediateContext.Get());
-			m_Sources[m_CurrentVideo]->SetBuffers(m_pImmediateContext.Get());
-				
-						
-			Draw(pInputView.Get(), pOutputView.Get());
-
-			DXUnlock();
-
-			LONGLONG SampleDuration = (m_vd.SampleDuration * m_RateN) / m_RateD;
-
-			pSample->SetSampleDuration(SampleDuration);
-			pSample->SetSampleTime(m_VideoTimestamp);			
-			if(pRequest->SetSample(pSample.Get()) != S_OK)
-			{
-				return;
-			}
-
-			m_VideoTimestamp += SampleDuration;
-
-			if(!m_Sources[m_CurrentVideo]->LoadNextFrame())
-			{
-				m_CurrentVideo++; // next video must have first frame to be already loaded (while creation)
-			}
-		}
-	}
-
-	//if(requestedSampleType == RequestedSampleType::AUDIO_SAMPLE_REQUESTED)
-	//{
-	//	ComPtr<IMFSample> pSample0;
-	//	DWORD ActualStreamIndex;
-	//	DWORD StreamFlags = 100;
-	//	LONGLONG SampleTimestamp;
-
-	//	if(m_Sources[0]->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &ActualStreamIndex, &StreamFlags, &SampleTimestamp, &pSample0) != S_OK)
-	//	{
-	//		return;
-	//	}
-
-	//	if(pSample0.Get() != nullptr)
-	//		if(pRequest->SetSample(pSample0.Get()) != S_OK)
-	//		{
-	//		return;
-	//		}
-
-	//	return;
-
-	//}
-
-
-
-
-
-
-
-
-
-
-	//if(SUCCEEDED(hr))
-	//{
-	//	VideoStreamDescriptor^ pVideoStreamDescriptor = dynamic_cast<VideoStreamDescriptor^>(request->StreamDescriptor);
-
-	//	if(pVideoStreamDescriptor != nullptr)
-	//	{
-	//		pEncodingProperties = pVideoStreamDescriptor->EncodingProperties;
-	//	}
-	//	else
-	//	{
-	//		return;//throw Platform::Exception::CreateException(E_INVALIDARG, L"Media Request is not for an video sample.");
-	//	}
-	//}
-
-	//if(SUCCEEDED(hr))
-	//{
-	//	ui32Height = pEncodingProperties->Height;
-	//	ui32Width = pEncodingProperties->Width;
-
-	//	MediaRatio^ spRatio = pEncodingProperties->FrameRate;
-	//	if(SUCCEEDED(hr))
-	//	{
-	//		UINT32 ui32Numerator = spRatio->Numerator;
-	//		UINT32 ui32Denominator = spRatio->Denominator;
-	//		if(ui32Numerator != 0)
-	//		{
-	//			ulTimeSpan = ((ULONGLONG)ui32Denominator) * 10000000 / ui32Numerator;
-	//		}
-	//		else
-	//		{
-	//			hr = E_INVALIDARG;
-	//		}
-	//	}
-	//}
-
-	//if(SUCCEEDED(hr))
-	//{
-	//	ComPtr<IMFMediaBuffer> pBuffer;
-	//	ComPtr<IMFSample> pSample;
-
-	//	hr = m_pVideoSamplesAllocator->AllocateSample(&pSample);
-
-	//	if(SUCCEEDED(hr))
-	//	{
-	//		hr = pSample->SetSampleDuration(ulTimeSpan);
-	//	}
-
-	//	if(SUCCEEDED(hr))
-	//	{
-	//		hr = pSample->SetSampleTime((LONGLONG)m_VideoTimestamp);
-	//	}
-
-	//	if(SUCCEEDED(hr))
-	//	{
-	//		m_VideoTimestamp += ulTimeSpan;
-	//	}
-
-	//	hr = pRequest->SetSample(pSample.Get());
-	//}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	//	if(SUCCEEDED(hr))
-	//	{
-
-	//		/*if((hr = pSample->GetBufferByIndex(0, &pBuffer)) != S_OK)
-	//		{
-	//		return;
-	//		}*/
-
-	//		//hr = GenerateCubeFrame(ui32Width, ui32Height, _iVideoFrameNumber, spBuffer.Get());
-
-	//		BYTE* pBits = 0;
-	//		BYTE* pBits0 = 0;
-	//		BYTE* pBits1 = 0;
-	//		DWORD ml = 0;
-
-	//		/*if(pBuffer->Lock(&pBits, &ml, NULL) != S_OK)
-	//		{
-	//		return;
-	//		}/**/
-
-	//		ComPtr<IMFSample> pSample0;
-	//		ComPtr<IMFSample> pSample1;
-	//		ComPtr<IMFMediaBuffer> pBuffer0;
-	//		ComPtr<IMFMediaBuffer> pBuffer1;
-	//		DWORD ActualStreamIndex;
-	//		DWORD StreamFlags = 100;
-	//		LONGLONG SampleTimestamp;
-
-
-	//		if(m_Sources[0]->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &ActualStreamIndex, &StreamFlags, &SampleTimestamp, &pSample0) != S_OK)
-	//		{
-	//			return;
-	//		}/**/
-
-	//		if(pSample0.Get() != nullptr)
-	//			if(pRequest->SetSample(pSample0.Get()) != S_OK)
-	//			{
-	//			return;
-	//			}
-
-	//		/*if(pSample0.Get() != nullptr)
-	//		{
-	//		StreamFlags = MF_SOURCE_READER_CONTROLF_DRAIN;
-
-	//		pSample0->GetBufferByIndex(0, &pBuffer0);
-	//		pBuffer0->Lock(&pBits0, NULL, NULL);
-	//		CopyMemory(pBits, pBits0, 1280 * (720 + 720 / 2));
-	//		pBuffer0->Unlock();
-	//		}
-	//		else
-	//		{
-	//		return;
-	//		}
-
-	//		pSample0.Reset();*/
-
-	//		/*if(m_Sources[0]->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &ActualStreamIndex, &StreamFlags, &SampleTimestamp, &pSample0) != S_OK)
-	//		{
-	//		return;
-	//		}/**/
-	//		//pSample0.Reset();
-
-	//		//pSample0.Get()->Release();
-
-	//		/*if(pSample0.Get() != nullptr)
-	//		{
-	//		StreamFlags = MF_SOURCE_READER_CONTROLF_DRAIN;
-
-	//		pSample0->GetBufferByIndex(0, &pBuffer0);
-	//		pBuffer0->Lock(&pBits0, NULL, NULL);
-	//		CopyMemory(pBits, pBits0, 1280 * (720 + 720 / 2));
-	//		pBuffer0->Unlock();
-	//		}
-	//		else
-	//		{
-	//		StreamFlags = 0;
-	//		}/**/
-
-	//		/*static ULONGLONG rt = 30000000;
-	//		if(pSample0.Get() != nullptr && m_VideoTimestamp > rt)
-	//		{
-	//		do
-	//		{
-	//		if(m_Sources[0]->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, MF_SOURCE_READER_CONTROLF_DRAIN, &ActualStreamIndex, &StreamFlags, &SampleTimestamp, &pSample0) != S_OK)
-	//		{
-	//		return;
-	//		}
-
-	//		if(pSample0.Get() != nullptr)
-	//		{
-	//		StreamFlags = MF_SOURCE_READER_CONTROLF_DRAIN;
-	//		}
-
-	//		} while(pSample0.Get() != nullptr);
-
-	//		rt += 30000000;
-	//		}/**/
-
-
-	//		/*if((hr = m_Sources[1]->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &ActualStreamIndex, &StreamFlags, &SampleTimestamp, &pSample1)) != S_OK)
-	//		{
-	//		return;
-	//		}*/
-
-	//		/*if(pSample0->GetBufferByIndex(0, &pBuffer0) != S_OK)
-	//		{
-	//		return;
-	//		}*/
-
-	//		/*if(pSample1->GetBufferByIndex(0, &pBuffer1) != S_OK)
-	//		{
-	//		return;
-	//		}*/
-
-	//		/*if((hr = pBuffer0->Lock(&pBits0, NULL, NULL)) != S_OK)
-	//		{
-	//		return;
-	//		}*/
-
-	//		/*if((hr = pBuffer1->Lock(&pBits1, NULL, NULL)) != S_OK)
-	//		{
-	//		return;
-	//		}*/
-
-	//		//CopyMemory(pBits, pBits0, 1280 * (720 + 720 / 2));
-	//		//FillMemory(pBits, 1382400, 200);
-
-	//		/*static int offset = 0, ddd = 100000;
-	//		offset += ulTimeSpan;
-
-	//		if(offset >= ui32Width * ddd) { offset = ui32Width * ddd; }
-
-	//		for(int h = 0; h < ui32Height + ui32Height / 2; h++)
-	//		{
-	//		CopyMemory(pBits + ui32Width * h, pBits0 + ui32Width * h + offset / ddd, ui32Width - offset / ddd);
-	//		CopyMemory(pBits + ui32Width * h + ui32Width - offset / ddd, pBits1 + ui32Width * h, offset / ddd);
-	//		}*/
-
-	//		//pBuffer1->Unlock();
-	//		//pBuffer0->Unlock();			
-
-	//		/*if(pBuffer->Unlock() != S_OK)
-	//		{
-	//		return;
-	//		}
-
-	//		pBuffer.Reset();
-	//		pBuffer0.Reset();
-	//		pBuffer1.Reset();
-	//		pSample0.Reset();
-	//		pSample1.Reset();*/
-	//	}
-
-	//	/*if(SUCCEEDED(hr))
-	//	{
-	//	hr = pRequest->SetSample(pSample.Get());
-	//	pSample.Reset();
-	//	}*/
-
-	//	
-
-	//	if(hr != S_OK)
-	//	{
-	//		return;
-	//	}
-	//}
+    AutoLock lock(m_critSec);
+
+    m_VideoList.push_back(url);
+}
+
+void CAdvancedMediaSource::AddTransitionEffect(TransitionEffectType type, float length_in_second)
+{
+    AutoLock lock(m_critSec);
+
+    TransitionEffect effect;
+    effect.m_effect = type;
+    effect.m_length = (ULONGLONG)(length_in_second * 10000000);
+
+    m_TransitionEffectList.push_back(effect);
+}
+
+bool CAdvancedMediaSource::InitialSourceSteams()
+{
+    if (nullptr == m_spDeviceManager)
+        return false;
+
+    m_Sources.clear();
+    m_transition_manager.CleanTimeLine();
+    for (int i = 0; i < (int)m_VideoList.size(); i++)
+    {
+        SVideoData vd;
+
+        CSourcePtr pV(new CSource(m_spDeviceManager.Get(), m_spOutputType.Get(), m_spAudioType.Get(), m_VideoList[i]));
+
+        if (!pV->IsInitialized())
+        {
+            return false;
+        }
+
+        m_Sources.push_back(pV);
+
+        // initial transition manager
+        m_transition_manager.AddVideoInfoInOrder(pV->GetDuration());
+        if (i < (int)m_TransitionEffectList.size())
+        {
+            m_transition_manager.AddTransitionBetweenVideos(m_TransitionEffectList[i], i);
+        }
+    }
+
+    m_transition_manager.CompileTimeLine();
+
+    m_SourceInitialized = false;
+
+    return true;
+}
+
+HRESULT CAdvancedMediaSource::AddAttribute(_In_ GUID guidKey, _In_ IPropertyValue ^value, _In_ IMFAttributes *pAttr)
+{
+    HRESULT hr = (value != nullptr && pAttr != nullptr) ? S_OK : E_INVALIDARG;
+    if (SUCCEEDED(hr))
+    {
+        PropertyType type = value->Type;
+        switch (type)
+        {
+        case PropertyType::UInt8Array:
+        {
+            Platform::Array<BYTE>^ arr;
+            value->GetUInt8Array(&arr);
+
+            hr = (pAttr->SetBlob(guidKey, arr->Data, arr->Length));
+        }
+            break;
+
+        case PropertyType::Double:
+        {
+            hr = (pAttr->SetDouble(guidKey, value->GetDouble()));
+        }
+            break;
+
+        case PropertyType::Guid:
+        {
+            hr = (pAttr->SetGUID(guidKey, value->GetGuid()));
+        }
+            break;
+
+        case PropertyType::String:
+        {
+            hr = (pAttr->SetString(guidKey, value->GetString()->Data()));
+        }
+            break;
+
+        case PropertyType::UInt32:
+        {
+            hr = (pAttr->SetUINT32(guidKey, value->GetUInt32()));
+        }
+            break;
+
+        case PropertyType::UInt64:
+        {
+            hr = (pAttr->SetUINT64(guidKey, value->GetUInt64()));
+        }
+            break;
+
+            // ignore unknown values
+        }
+    }
+    return hr;
+}
+
+HRESULT CAdvancedMediaSource::ConvertPropertiesToMediaType(_In_ IMediaEncodingProperties ^mep, _Outptr_ IMFMediaType **ppMT)
+{
+    HRESULT hr = (mep != nullptr && ppMT != nullptr) ? S_OK : E_INVALIDARG;
+    ComPtr<IMFMediaType> spMT;
+    if (SUCCEEDED(hr))
+    {
+        *ppMT = nullptr;
+        hr = MFCreateMediaType(&spMT);
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        auto it = mep->Properties->First();
+
+        while (SUCCEEDED(hr) && it->HasCurrent)
+        {
+            auto currentValue = it->Current;
+            hr = AddAttribute(currentValue->Key, safe_cast<IPropertyValue^>(currentValue->Value), spMT.Get());
+            it->MoveNext();
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            GUID guiMajorType = safe_cast<IPropertyValue^>(mep->Properties->Lookup(MF_MT_MAJOR_TYPE))->GetGuid();
+
+            if (guiMajorType != MFMediaType_Video && guiMajorType != MFMediaType_Audio)
+            {
+                hr = E_UNEXPECTED;
+            }
+        }
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        *ppMT = spMT.Detach();
+    }
+
+    return hr;
+}
+
+bool CAdvancedMediaSource::InitializeSource()
+{
+    if (m_SourceInitialized)
+        return S_OK;
+
+    AutoLock lock(m_critSec);
+
+    ComPtr<IMFDXGIBuffer> spDXGIBuffer;
+
+    HRESULT hr = m_spDeviceManager->LockDevice(m_hDevice, IID_PPV_ARGS(m_spD3DDevice.ReleaseAndGetAddressOf()), TRUE);
+
+    if (SUCCEEDED(hr))
+    {
+        m_spD3DDevice->GetImmediateContext(m_spD3DContext.ReleaseAndGetAddressOf());
+        
+        if (m_frameMixer != nullptr)
+            m_frameMixer->Initialize(m_spD3DDevice.Get(), m_outputWidth, m_outputHeight);
+
+        m_spDeviceManager->UnlockDevice(m_hDevice, TRUE);
+    }
+
+    m_SourceInitialized = true;
+
+    return true;
+}
+
+void CAdvancedMediaSource::GenerateVideoSample(MediaStreamSourceSampleRequest ^ request)
+{
+    ComPtr<IMFMediaStreamSourceSampleRequest> spRequest;
+    VideoEncodingProperties^ spEncodingProperties;
+    HRESULT hr = (request != nullptr) ? S_OK : E_POINTER;
+    UINT32 ui32Height = 0;
+    UINT32 ui32Width = 0;
+    ULONGLONG ulTimeSpan = 0;
+
+    if (SUCCEEDED(hr))
+    {
+        hr = reinterpret_cast<IInspectable*>(request)->QueryInterface(spRequest.ReleaseAndGetAddressOf());
+    }
+
+    // Make sure we are on the same device if not then reset the device
+    if (SUCCEEDED(hr))
+    {
+        if (FAILED(m_spDeviceManager->TestDevice(m_hDevice)))
+        {
+            m_spDeviceManager->CloseDeviceHandle(m_hDevice);
+            hr = m_spDeviceManager->OpenDeviceHandle(&m_hDevice);
+        }
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        VideoStreamDescriptor^ spVideoStreamDescriptor;
+        spVideoStreamDescriptor = dynamic_cast<VideoStreamDescriptor^>(request->StreamDescriptor);
+        if (spVideoStreamDescriptor != nullptr)
+        {
+            spEncodingProperties = spVideoStreamDescriptor->EncodingProperties;
+        }
+        else
+        {
+            throw Platform::Exception::CreateException(E_INVALIDARG, L"Media Request is not for an video sample.");
+        }
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        ui32Height = spEncodingProperties->Height;
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        ui32Width = spEncodingProperties->Width;
+    }
+
+    m_outputWidth = ui32Width;
+    m_outputHeight = ui32Height;
+
+    if (SUCCEEDED(hr))
+    {
+        MediaRatio^ spRatio = spEncodingProperties->FrameRate;
+        if (SUCCEEDED(hr))
+        {
+            UINT32 ui32Numerator = spRatio->Numerator;
+            UINT32 ui32Denominator = spRatio->Denominator;
+            if (ui32Numerator != 0)
+            {
+                ulTimeSpan = ((ULONGLONG)ui32Denominator) * 10000000 / ui32Numerator;
+            }
+            else
+            {
+                hr = E_INVALIDARG;
+            }
+        }
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        ComPtr<IMFMediaBuffer> spBuffer;
+        ComPtr<IMFSample> spSample;
+        hr = m_spSampleAllocator->AllocateSample(spSample.GetAddressOf());
+
+        if (!SUCCEEDED(hr))
+        {
+            _DPRINTF((L"Out of Memory"));
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = spSample->SetSampleDuration(ulTimeSpan);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = spSample->SetSampleTime((LONGLONG)m_ulVideoTimestamp);
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = spSample->GetBufferByIndex(0, spBuffer.GetAddressOf());
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            hr = GenerateFrame2(ui32Width, ui32Height, m_ulVideoTimestamp, spBuffer.Get());
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            if (!m_EndOfStream)
+                hr = spRequest->SetSample(spSample.Get());
+            else
+                request->Sample = nullptr;
+        }
+
+        if (SUCCEEDED(hr))
+        {
+            ++m_iVideoFrameNumber;
+            m_ulVideoTimestamp += ulTimeSpan;
+        }
+    }
+
+    _DPRINTF((L"m_iVideoFrameNumber %d", m_iVideoFrameNumber));
+
+    if (FAILED(hr))
+    {
+        throw Platform::Exception::CreateException(hr);
+    }
+}
+
+HRESULT CreateMediaSample(DWORD cbData, IMFSample **ppSample)
+{
+    HRESULT hr = S_OK;
+
+    IMFSample *pSample = NULL;
+    IMFMediaBuffer *pBuffer = NULL;
+
+    hr = MFCreateSample(&pSample);
+
+    if (SUCCEEDED(hr))
+    {
+        hr = MFCreateMemoryBuffer(cbData, &pBuffer);
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        hr = pSample->AddBuffer(pBuffer);
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        *ppSample = pSample;
+        (*ppSample)->AddRef();
+    }
+
+    SafeRelease(&pSample);
+    SafeRelease(&pBuffer);
+    return hr;
 }
 
 void CAdvancedMediaSource::GenerateAudioSample(Windows::Media::Core::MediaStreamSourceSampleRequest^ request)
 {
-	//return;
-	ComPtr<IMFMediaStreamSourceSampleRequest> pRequest;
-	HRESULT hr;
+    ComPtr<IMFMediaStreamSourceSampleRequest> pRequest;
+    HRESULT hr;
 
-	RET_IFFAIL(reinterpret_cast<IInspectable*>(request)->QueryInterface(IID_PPV_ARGS(&pRequest)))
+    RET_IFFAIL(reinterpret_cast<IInspectable*>(request)->QueryInterface(IID_PPV_ARGS(&pRequest)))
 
-	AutoLock lock(m_critSec);
+    AutoLock lock(m_critSec);
 
-	if(!m_Initialized)
-	{
-		return;
-	}
+    std::vector<int> curr_video_index_list(2);
 
-	while(m_CurrentAudio < (int)m_Sources.size())
-	{
-		ComPtr<IMFSample> pSample;
+    bool is_end_of_stream = false;
+    m_transition_manager.GetCurrentVideoIndexs(m_ulAudioTimestamp, curr_video_index_list, is_end_of_stream);
 
-		m_Sources[m_CurrentAudio]->GetAudioSample(&pSample);
+    if (is_end_of_stream)
+    {
+        request->Sample = nullptr;
+        return;
+    }
 
-		if(pSample != nullptr)
-		{
+    ComPtr<IMFSample> pSample;
 
-			//AudioStreamDescriptor^ pStreamDescriptor = dynamic_cast<AudioStreamDescriptor^>(request->StreamDescriptor);
-			//AudioEncodingProperties^ pEncodingProperties;
+    const int number_video = curr_video_index_list.size();
+    if (0 == number_video)
+    {
+        // Add empty sample
+        CreateMediaSample(0, &pSample);
 
-			//if(pStreamDescriptor != nullptr)
-			//{
-			//	pEncodingProperties = pStreamDescriptor->EncodingProperties;
-			//}
-			//else
-			//{
-			//	return;//throw Platform::Exception::CreateException(E_INVALIDARG, L"Media Request is not for an video sample.");
-			//}
+        LONGLONG SampleDuration = 333333;
+        
+        pSample->SetSampleTime(m_ulAudioTimestamp);
+        pRequest->SetSample(pSample.Get());
+        m_ulAudioTimestamp += SampleDuration;
 
-			//unsigned int sr = pEncodingProperties->SampleRate;
-			////pEncodingProperties->SampleRate = 4410;// ((LONGLONG)sr *m_RateN) / m_RateD;
-			//sr = pEncodingProperties->SampleRate;
+        return;
+    }
 
-			//unsigned int br = pEncodingProperties->Bitrate;
-			////pEncodingProperties->Bitrate = 141120;// ((LONGLONG)br *m_RateN) / m_RateD;
-			//br = pEncodingProperties->Bitrate;
+    int curr_audio = curr_video_index_list[number_video - 1];
 
-			/*DWORD BufferCount = 0;
-			DWORD TotalLe = 0;
-			ComPtr<IMFMediaBuffer> pBuffer;
+    assert((curr_audio < (int)m_Sources.size()));
 
-			pSample->GetBufferCount(&BufferCount);
-			pSample->GetTotalLength(&TotalLe);
-			pSample->GetBufferByIndex(0, &pBuffer);
-			pBuffer->SetCurrentLength(TotalLe/m_RateD);
-			pSample->GetTotalLength(&TotalLe);*/
+    if (curr_audio < (int)m_Sources.size())
+    {
+        ComPtr<IMFSample> pSample;
 
-			LONGLONG SampleDuration = 0;
+        m_Sources[curr_audio]->GetAudioSample(&pSample);
 
-			pSample->GetSampleDuration(&SampleDuration);
-			//SampleDuration = (SampleDuration * m_RateN) / m_RateD;
-			//pSample->SetSampleDuration(SampleDuration);
-			pSample->SetSampleTime(m_AudioTimestamp);
-			pRequest->SetSample(pSample.Get());
-			m_AudioTimestamp += SampleDuration;// (SampleDuration * m_RateN) / m_RateD;
-			
-			break;
-		}
-		else
-		{
-			m_CurrentAudio++;
-		}
-	}	
+        if(pSample != nullptr)
+        {
+            LONGLONG SampleDuration = 0;
+
+            pSample->GetSampleDuration(&SampleDuration);
+            pSample->SetSampleTime(m_ulAudioTimestamp);
+            pRequest->SetSample(pSample.Get());
+            m_ulAudioTimestamp += SampleDuration;
+        }
+        else
+        {
+            // Add empty sample
+            CreateMediaSample(0, &pSample);
+
+            LONGLONG SampleDuration = 333333;
+
+            pSample->SetSampleTime(m_ulAudioTimestamp);
+            pRequest->SetSample(pSample.Get());
+            m_ulAudioTimestamp += SampleDuration;
+        }
+    }
+    else
+    {
+        // Add empty sample
+        CreateMediaSample(0, &pSample);
+
+        LONGLONG SampleDuration = 333333;
+
+        pSample->SetSampleTime(m_ulAudioTimestamp);
+        pRequest->SetSample(pSample.Get());
+        m_ulAudioTimestamp += SampleDuration;
+    }
 }
 
-//struct ScreenVertex
-//{
-//	FLOAT pos[4];
-//	FLOAT tex[2];
-//};
-
-bool CAdvancedMediaSource::InitResources()
+HRESULT CAdvancedMediaSource::GenerateFrame(UINT32 ui32Width, UINT32 ui32Height, int iFrameRotation, IMFMediaBuffer * pBuffer)
 {
-	
+    InitializeSource();
 
+    HRESULT hr = S_OK;
 
-	// Pixel shader
-	static
-	#include "PixelShader.h"
+    AutoLock lock(m_critSec);
 
-	unsigned long ref = m_pDX11Device.Get()->AddRef() - 1;
-	m_pDX11Device.Get()->Release();
+    if(m_CurrentVideo < (int) m_Sources.size())
+    {
+        if(m_Sources[m_CurrentVideo]->HasFrameLoaded())
+        {        
+            IMFSample* pInputSample = m_Sources[m_CurrentVideo]->GetSample();
 
-	if(m_pDX11Device->CreatePixelShader(g_psshader, sizeof(g_psshader), NULL, &m_pPixelShader) != S_OK)
-	{
-		return false;
-	}
+            if (pInputSample != nullptr)
+            {
+                m_spInputType = m_Sources[m_CurrentVideo]->GetMediaType();
 
-	ref = m_pDX11Device.Get()->AddRef() - 1;
-	m_pDX11Device.Get()->Release();
+                ComPtr<IMFMediaBuffer> spInput;
+                pInputSample->ConvertToContiguousBuffer(&spInput);
 
-	// Vertex Shader
-	static
-	#include "VertexShader.h"
-		
-	const D3D11_INPUT_ELEMENT_DESC quadlayout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0}
-	};
-		
-	if(m_pDX11Device->CreateVertexShader(g_vsshader, sizeof(g_vsshader), NULL, &m_pVertexShader) != S_OK)
-	{
-		return false;
-	}
+                bool fDeviceLocked = false;
+                if (m_spDeviceManager != nullptr)
+                {
+                    ThrowIfError(m_spDeviceManager->LockDevice(m_hDevice, IID_PPV_ARGS(m_spD3DDevice.ReleaseAndGetAddressOf()), TRUE));
+                    fDeviceLocked = true;
+                }
 
-	if(m_pDX11Device->CreateInputLayout(quadlayout, 2, g_vsshader, sizeof(g_vsshader), &m_pQuadLayout) != S_OK)
-	{
-		return false;
-	}
+                m_spD3DDevice->GetImmediateContext(m_spD3DContext.ReleaseAndGetAddressOf());
 
-	// Sampler
-	D3D11_SAMPLER_DESC SamplerDesc;
-	ZeroMemory(&SamplerDesc, sizeof(SamplerDesc));
+                SVideoData vd;
+                m_Sources[m_CurrentVideo]->GetVideoData(&vd);
+                m_frameMixer->SetInputSize(m_spD3DContext.Get(), vd.Width, vd.Height);
 
-	SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+                ProcessOutput(spInput.Get(), pBuffer);
 
-	if(m_pDX11Device->CreateSamplerState(&SamplerDesc, &m_pSampleStateLinear) != S_OK)
-	{
-		return false;
-	}
+                if (fDeviceLocked)
+                {
+                    ThrowIfError(m_spDeviceManager->UnlockDevice(m_hDevice, FALSE));
+                }
 
-	//--------
-	//m_pBuffers[0] = m_pScreenQuadVB.Get();
-	//m_vbStrides = sizeof(ScreenVertex);
-	//m_vbOffsets = 0;
-	m_pSamplers[0] = m_pSampleStateLinear.Get();
+                if (!m_Sources[m_CurrentVideo]->LoadNextFrame())
+                {
+                    m_CurrentVideo++; // next video must have first frame to be already loaded (while creation)
+                }
+            }
+        }
+    }
+    else
+    {
+        m_EndOfStream = true;
+    }
 
-	m_Viewport.MinDepth = 0.0f;
-	m_Viewport.MaxDepth = 1.0f;
-	m_Viewport.TopLeftX = 0.0f;
-	m_Viewport.TopLeftY = 0.0f;
-
-	return true;	
+    return hr;
 }
 
-bool CAdvancedMediaSource::CreateInputView(IMFSample* pSample, ID3D11ShaderResourceView** ppView)
+HRESULT CAdvancedMediaSource::GenerateFrame2(UINT32 ui32Width, UINT32 ui32Height, ULONGLONG curr_time_stamp, IMFMediaBuffer * pBuffer)
 {
-	assert(pSample != nullptr);
+    InitializeSource();
 
-	HRESULT hr;
-	ComPtr<ID3D11Texture2D> pTexture;
-	ComPtr<IMFMediaBuffer> pBuffer;
-	ComPtr<IMFDXGIBuffer> pDXGIBuffer;
-	UINT Index = 0;
+    HRESULT hr = S_OK;
 
-	RETFALSE_IFFAIL(pSample->GetBufferByIndex(0, &pBuffer))
-	RETFALSE_IFFAIL(pBuffer.As(&pDXGIBuffer))
-	RETFALSE_IFFAIL(pDXGIBuffer->GetResource(IID_PPV_ARGS(&pTexture)))
-	RETFALSE_IFFAIL(pDXGIBuffer->GetSubresourceIndex(&Index))
+    AutoLock lock(m_critSec);
 
-	ComPtr<ID3D11Device> spDev;
-	pTexture->GetDevice(&spDev);
-	if(spDev != m_pDX11Device)
-	{
-		return false;
-	}
+    std::vector<int> curr_video_index_list(2);
 
-	D3D11_TEXTURE2D_DESC textureDesc;
-	D3D11_SHADER_RESOURCE_VIEW_DESC viewDesc;
+    bool is_end_of_stream = false;
+    m_transition_manager.GetCurrentVideoIndexs(curr_time_stamp, curr_video_index_list, is_end_of_stream);
 
-	ZeroMemory(&viewDesc, sizeof(viewDesc));
-	pTexture->GetDesc(&textureDesc);
-	viewDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;// DXGI_FORMAT_NV12;
+    if (is_end_of_stream)
+    {
+        m_EndOfStream = true;
+        return hr;
+    }
 
-	if(textureDesc.ArraySize > 1)
-	{
-		// Texture array, use the subresource index
-		viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
-		viewDesc.Texture2DArray.FirstArraySlice = Index;
-		viewDesc.Texture2DArray.ArraySize = 1;
-		viewDesc.Texture2DArray.MipLevels = 1;
-		viewDesc.Texture2DArray.MostDetailedMip = 0;
-	}
-	else
-	{
-		viewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		viewDesc.Texture2D.MostDetailedMip = 0;
-		viewDesc.Texture2D.MipLevels = 1;
-	}
+    if (0 == curr_video_index_list.size())
+    {
+        bool fDeviceLocked = false;
+        if (m_spDeviceManager != nullptr)
+        {
+            ThrowIfError(m_spDeviceManager->LockDevice(m_hDevice, IID_PPV_ARGS(m_spD3DDevice.ReleaseAndGetAddressOf()), TRUE));
+            fDeviceLocked = true;
+        }
 
-	hr = m_pDevice->CreateShaderResourceView(pTexture.Get(), &viewDesc, ppView);
+        m_spD3DDevice->GetImmediateContext(m_spD3DContext.ReleaseAndGetAddressOf());
 
-	return hr == S_OK;
+        TransitionParameter parameter = m_transition_manager.GetVideoTransitionParameter(curr_time_stamp, EMPTY_VIDEO);
+        m_frameMixer->SetTransitionparameter(parameter);
+        m_frameMixer->SetInputSize(m_spD3DContext.Get(), m_outputWidth, m_outputHeight);
+
+        ProcessOutput(pBuffer);
+
+        if (fDeviceLocked)
+        {
+            ThrowIfError(m_spDeviceManager->UnlockDevice(m_hDevice, FALSE));
+        }
+
+        return hr;
+    }
+
+    for (int i = 0; i < (int)curr_video_index_list.size(); i++)
+    {
+        int video_index = curr_video_index_list[i];
+
+        assert(video_index < (int)m_Sources.size());
+
+        if (m_Sources[video_index]->HasFrameLoaded())
+        {
+            IMFSample* pInputSample = m_Sources[video_index]->GetSample();
+
+            if (pInputSample != nullptr)
+            {
+                m_spInputType = m_Sources[video_index]->GetMediaType();
+
+                ComPtr<IMFMediaBuffer> spInput;
+                pInputSample->ConvertToContiguousBuffer(&spInput);
+
+                bool fDeviceLocked = false;
+                if (m_spDeviceManager != nullptr)
+                {
+                    ThrowIfError(m_spDeviceManager->LockDevice(m_hDevice, IID_PPV_ARGS(m_spD3DDevice.ReleaseAndGetAddressOf()), TRUE));
+                    fDeviceLocked = true;
+                }
+
+                m_spD3DDevice->GetImmediateContext(m_spD3DContext.ReleaseAndGetAddressOf());
+
+                SVideoData vd;
+                m_Sources[video_index]->GetVideoData(&vd);
+
+                TransitionParameter parameter = m_transition_manager.GetVideoTransitionParameter(curr_time_stamp, video_index);
+                m_frameMixer->SetTransitionparameter(parameter);
+                m_frameMixer->SetInputSize(m_spD3DContext.Get(), vd.Width, vd.Height);
+
+                ProcessOutput(spInput.Get(), pBuffer);
+
+                if (fDeviceLocked)
+                {
+                    ThrowIfError(m_spDeviceManager->UnlockDevice(m_hDevice, FALSE));
+                }
+
+                m_Sources[video_index]->LoadNextFrame();
+            }
+        }
+    }
+
+    return hr;
 }
 
-bool CAdvancedMediaSource::CreateOutputView(IMFSample* pSample, ID3D11RenderTargetView** ppView)
+// Reads DX buffers from IMFMediaBuffer
+ComPtr<ID3D11Texture2D> BufferToDXType(IMFMediaBuffer *pBuffer, _Out_ UINT *uiViewIndex)
 {
-	assert(pSample != nullptr);
+    ComPtr<IMFDXGIBuffer> spDXGIBuffer;
+    ComPtr<ID3D11Texture2D> spTexture;
 
-	HRESULT hr;
-	ComPtr<ID3D11Texture2D> pTexture;	
-	ComPtr<IMFMediaBuffer> pBuffer;
-	ComPtr<IMFDXGIBuffer> pDXGIBuffer;
-	UINT Index = 0;
+    if (SUCCEEDED(pBuffer->QueryInterface(IID_PPV_ARGS(&spDXGIBuffer))))
+    {
+        if (SUCCEEDED(spDXGIBuffer->GetResource(IID_PPV_ARGS(&spTexture))))
+        {
+            spDXGIBuffer->GetSubresourceIndex(uiViewIndex);
+        }
+    }
 
-	RETFALSE_IFFAIL(pSample->GetBufferByIndex(0, &pBuffer))
-	RETFALSE_IFFAIL(pBuffer.As(&pDXGIBuffer))
-	RETFALSE_IFFAIL(pDXGIBuffer->GetResource(IID_PPV_ARGS(&pTexture)))
-	RETFALSE_IFFAIL(pDXGIBuffer->GetSubresourceIndex(&Index))
-
-	ComPtr<ID3D11Device> spDev;
-	pTexture->GetDevice(&spDev);
-	if(spDev != m_pDX11Device)
-	{
-		return false;
-	}
-
-	D3D11_TEXTURE2D_DESC textureDesc;
-	D3D11_RENDER_TARGET_VIEW_DESC viewDesc;
-
-	ZeroMemory(&viewDesc, sizeof(viewDesc));
-	pTexture->GetDesc(&textureDesc);
-	viewDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;// DXGI_FORMAT_NV12;
-
-	if(textureDesc.ArraySize > 1)
-	{
-		// Texture array, use the subresource index
-		viewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
-		viewDesc.Texture2DArray.FirstArraySlice = Index;
-		viewDesc.Texture2DArray.ArraySize = 1;
-		viewDesc.Texture2DArray.MipSlice = 0;
-	}
-	else
-	{
-		viewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-		viewDesc.Texture2D.MipSlice = 0;
-	}
-
-	return m_pDevice->CreateRenderTargetView(pTexture.Get(), &viewDesc, ppView) == S_OK;
+    return spTexture;
 }
 
-bool CAdvancedMediaSource::Draw(ID3D11ShaderResourceView* pInputView, ID3D11RenderTargetView* pOutputView)
+// Get the default stride for a video format. 
+LONG GetDefaultStride(IMFMediaType *pType)
 {
-	ComPtr<ID3D11RenderTargetView> pOrigRTV;
-	ComPtr<ID3D11DepthStencilView> pOrigDSV;
-	ComPtr<ID3D11ShaderResourceView> pOrigSRV;
-	D3D11_VIEWPORT vpOld;
-	UINT nViewPorts = 1;
-	const FLOAT ColorBlack[4] = {1.0f, 0.0f, 1.0f, 1.0f};	
+    LONG lStride = 0;
 
-	m_pImmediateContext->IASetInputLayout(m_pQuadLayout.Get());
-	//m_pImmediateContext->IASetVertexBuffers(0, 1, m_pBuffers, &m_vbStrides, &m_vbOffsets);
-	m_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-	m_pImmediateContext->PSSetSamplers(0, 1, m_pSamplers);
-	m_pImmediateContext->OMGetRenderTargets(1, &pOrigRTV, &pOrigDSV);
-	m_pImmediateContext->OMSetRenderTargets(1, &pOutputView, nullptr);
-	m_pImmediateContext->PSGetShaderResources(0, 1, &pOrigSRV);
-	m_pImmediateContext->PSSetShaderResources(0, 1, &pInputView);
-	m_pImmediateContext->RSGetViewports(&nViewPorts, &vpOld);
+    // Try to get the default stride from the media type.
+    if (FAILED(pType->GetUINT32(MF_MT_DEFAULT_STRIDE, (UINT32*)&lStride)))
+    {
+        UINT32 width = 0;
+        UINT32 height = 0;
 
-	m_pImmediateContext->RSSetViewports(1, &m_Viewport);
-	m_pImmediateContext->VSSetShader(m_pVertexShader.Get(), nullptr, 0);
-	m_pImmediateContext->PSSetShader(m_pPixelShader.Get(), nullptr, 0);
+        // Get the subtype and the image size.
+        ThrowIfError(MFGetAttributeSize(pType, MF_MT_FRAME_SIZE, &width, &height));
+        lStride = width * 4;
 
-	m_pImmediateContext->ClearRenderTargetView(pOutputView, ColorBlack);
-	m_pImmediateContext->Draw(4, 0);
+        // Set the attribute for later reference.
+        (void)pType->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(lStride));
+    }
 
-	// Restore the Old
-	m_pImmediateContext->RSSetViewports(nViewPorts, &vpOld);
-	m_pImmediateContext->PSSetShaderResources(0, 1, pOrigSRV.GetAddressOf());
-	m_pImmediateContext->OMSetRenderTargets(1, pOrigRTV.GetAddressOf(), pOrigDSV.Get());
-
-	m_pImmediateContext->Flush();
-
-	return true;
+    return lStride;
 }
 
-bool CAdvancedMediaSource::DXLock()
+// Generate output data.
+void CAdvancedMediaSource::ProcessOutput(IMFMediaBuffer *pIn, IMFMediaBuffer *pOut)
 {
-	HRESULT hr;
+    ComPtr<ID3D11Texture2D> spInTex;
+    ComPtr<ID3D11Texture2D> spOutTex;
+    UINT uiInIndex = 0;
+    UINT uiOutIndex = 0;
 
-	if(m_pDXManager->TestDevice(m_DeviceHandle) != S_OK)
-	{
-		return false;
-	}
+    // Attempt to convert directly to DX textures
+    try
+    {
+        spInTex = BufferToDXType(pIn, &uiInIndex);
+    }
+    catch (Exception^)
+    {
+    }
+    try
+    {
+        spOutTex = BufferToDXType(pOut, &uiOutIndex);
+    }
+    catch (Exception^)
+    {
+    }
 
-	RETFALSE_IFFAIL(m_pDXManager->LockDevice(m_DeviceHandle, IID_PPV_ARGS(&m_pDevice), TRUE))
-	m_pDevice->GetImmediateContext(&m_pImmediateContext);
+    bool fNativeIn = spInTex != nullptr;
+    bool fNativeOut = spOutTex != nullptr;
 
-	unsigned long ref = m_pDevice.Get()->AddRef();
-	m_pDevice.Get()->Release();
+    // If the input or output textures' device does not match our device
+    // we have to move them to our device
+    if (fNativeIn)
+    {
+        ComPtr<ID3D11Device> spDev;
+        spInTex->GetDevice(&spDev);
+        if (spDev != m_spD3DDevice)
+        {
+            fNativeIn = false;
+        }
+    }
+    if (fNativeOut)
+    {
+        ComPtr<ID3D11Device> spDev;
+        spOutTex->GetDevice(&spDev);
+        if (spDev != m_spD3DDevice)
+        {
+            fNativeOut = false;
+        }
+    }
 
-	return true;
+
+    if (!fNativeIn)
+    {
+        // Native DX texture in the buffer failed
+        // create a texture we can use and copy the data in
+        if (m_spInBufferTex == nullptr)
+        {
+            D3D11_TEXTURE2D_DESC desc;
+            ZeroMemory(&desc, sizeof(desc));
+            desc.Width = m_outputWidth;
+            desc.Height = m_outputHeight;
+            desc.ArraySize = 1;
+            desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc.Usage = D3D11_USAGE_DYNAMIC;
+            desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            desc.MipLevels = 1;
+            desc.SampleDesc.Count = 1;
+
+            ThrowIfError(m_spD3DDevice->CreateTexture2D(&desc, nullptr, &m_spInBufferTex));
+        }
+
+        // scope the texture lock
+        {
+            TextureLock tlock(m_spD3DContext.Get(), m_spInBufferTex.Get());
+            ThrowIfError(tlock.Map(uiInIndex, D3D11_MAP_WRITE_DISCARD, 0));
+
+            // scope the video buffer lock
+            {
+                LONG lStride = GetDefaultStride(m_spInputType.Get());
+
+                VideoBufferLock lock(pIn, MF2DBuffer_LockFlags_Read, m_outputHeight, lStride);
+
+                ThrowIfError(MFCopyImage((BYTE*)tlock.map.pData, tlock.map.RowPitch, lock.GetData(), lock.GetStride(), abs(lStride), m_outputHeight));
+            }
+        }
+        spInTex = m_spInBufferTex;
+    }
+
+    if (!fNativeOut)
+    {
+        if (m_spOutBufferTex == nullptr)
+        {
+            D3D11_TEXTURE2D_DESC desc;
+            ZeroMemory(&desc, sizeof(desc));
+            desc.Width = m_outputWidth;
+            desc.Height = m_outputHeight;
+            desc.ArraySize = 1;
+            desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc.Usage = D3D11_USAGE_DEFAULT;
+            desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+            desc.MipLevels = 1;
+            desc.SampleDesc.Count = 1;
+            ThrowIfError(m_spD3DDevice->CreateTexture2D(&desc, nullptr, &m_spOutBufferTex));
+        }
+        spOutTex = m_spOutBufferTex;
+    }
+
+    // do some processing
+    m_frameMixer->ProcessFrame(m_spD3DDevice.Get(), spInTex.Get(), uiInIndex, spOutTex.Get(), uiOutIndex);
+
+    //m_spD3DContext->CopyResource(spOutTex.Get(), spInTex.Get());
+
+    // write back pOut if necessary
+    if (!fNativeOut)
+    {
+        if (m_spOutBufferStage == nullptr)
+        {
+            D3D11_TEXTURE2D_DESC desc;
+            ZeroMemory(&desc, sizeof(desc));
+            desc.Width = m_outputWidth;
+            desc.Height = m_outputHeight;
+            desc.ArraySize = 1;
+            desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc.Usage = D3D11_USAGE_STAGING;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            desc.MipLevels = 1;
+            desc.SampleDesc.Count = 1;
+            ThrowIfError(m_spD3DDevice->CreateTexture2D(&desc, nullptr, &m_spOutBufferStage));
+        }
+
+        m_spD3DContext->CopyResource(m_spOutBufferStage.Get(), m_spOutBufferTex.Get());
+
+        {
+            TextureLock tlock(m_spD3DContext.Get(), m_spOutBufferStage.Get());
+            ThrowIfError(tlock.Map(uiOutIndex, D3D11_MAP_READ, 0));
+
+            // scope the video buffer lock
+            {
+                LONG lStride = GetDefaultStride(m_spOutputType.Get());
+
+                VideoBufferLock lock(pOut, MF2DBuffer_LockFlags_Write, m_outputHeight, lStride);
+
+                ThrowIfError(MFCopyImage(lock.GetData(), lock.GetStride(), (BYTE*)tlock.map.pData, tlock.map.RowPitch, abs(lStride), m_outputHeight));
+            }
+        }
+    }
 }
 
-void CAdvancedMediaSource::DXUnlock()
+// Generate output data.
+void CAdvancedMediaSource::ProcessOutput(IMFMediaBuffer *pOut)
 {
-	unsigned long ref = m_pImmediateContext.Reset();
+    ComPtr<ID3D11Texture2D> spOutTex;
+    UINT uiOutIndex = 0;
 
-	if((ref = m_pDevice.Reset()) == 0)
-	{
-		return;
-	}
+    // Attempt to convert directly to DX textures
+    try
+    {
+        spOutTex = BufferToDXType(pOut, &uiOutIndex);
+    }
+    catch (Exception^)
+    {
+    }
 
-	m_pDXManager->UnlockDevice(m_DeviceHandle, FALSE);
-}
+    bool fNativeOut = spOutTex != nullptr;
 
-bool CAdvancedMediaSource::SetPlaybackRate(int nominator, int denominator)
-{
-	if(nominator < 1 || denominator < 1)
-	{
-		return false;
-	}
+    // If the input or output textures' device does not match our device
+    // we have to move them to our device
+    if (fNativeOut)
+    {
+        ComPtr<ID3D11Device> spDev;
+        spOutTex->GetDevice(&spDev);
+        if (spDev != m_spD3DDevice)
+        {
+            fNativeOut = false;
+        }
+    }
 
-	AutoLock lock(m_critSec);
+    if (!fNativeOut)
+    {
+        if (m_spOutBufferTex == nullptr)
+        {
+            D3D11_TEXTURE2D_DESC desc;
+            ZeroMemory(&desc, sizeof(desc));
+            desc.Width = m_outputWidth;
+            desc.Height = m_outputHeight;
+            desc.ArraySize = 1;
+            desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc.Usage = D3D11_USAGE_DEFAULT;
+            desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+            desc.MipLevels = 1;
+            desc.SampleDesc.Count = 1;
+            ThrowIfError(m_spD3DDevice->CreateTexture2D(&desc, nullptr, &m_spOutBufferTex));
+        }
+        spOutTex = m_spOutBufferTex;
+    }
 
-	//m_RateN = nominator;
-	//m_RateD = denominator;
+    // do some processing
+    m_frameMixer->ProcessFrame(m_spD3DDevice.Get(), spOutTex.Get(), uiOutIndex);
 
-	return true;
+    //m_spD3DContext->CopyResource(spOutTex.Get(), spInTex.Get());
+
+    // write back pOut if necessary
+    if (!fNativeOut)
+    {
+        if (m_spOutBufferStage == nullptr)
+        {
+            D3D11_TEXTURE2D_DESC desc;
+            ZeroMemory(&desc, sizeof(desc));
+            desc.Width = m_outputWidth;
+            desc.Height = m_outputHeight;
+            desc.ArraySize = 1;
+            desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            desc.Usage = D3D11_USAGE_STAGING;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            desc.MipLevels = 1;
+            desc.SampleDesc.Count = 1;
+            ThrowIfError(m_spD3DDevice->CreateTexture2D(&desc, nullptr, &m_spOutBufferStage));
+        }
+
+        m_spD3DContext->CopyResource(m_spOutBufferStage.Get(), m_spOutBufferTex.Get());
+
+        {
+            TextureLock tlock(m_spD3DContext.Get(), m_spOutBufferStage.Get());
+            ThrowIfError(tlock.Map(uiOutIndex, D3D11_MAP_READ, 0));
+
+            // scope the video buffer lock
+            {
+                LONG lStride = GetDefaultStride(m_spOutputType.Get());
+
+                VideoBufferLock lock(pOut, MF2DBuffer_LockFlags_Write, m_outputHeight, lStride);
+
+                ThrowIfError(MFCopyImage(lock.GetData(), lock.GetStride(), (BYTE*)tlock.map.pData, tlock.map.RowPitch, abs(lStride), m_outputHeight));
+            }
+        }
+    }
 }

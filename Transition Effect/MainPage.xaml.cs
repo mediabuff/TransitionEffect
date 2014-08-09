@@ -23,150 +23,165 @@ using Transition_Effect.Common;
 
 namespace Transition_Effect
 {
-	/// <summary>
-	/// An empty page that can be used on its own or navigated to within a Frame.
-	/// </summary>
-	public sealed partial class MainPage : Page
-	{
-		CAdvancedMediaSource ams;
-		MediaStreamSource mss;
-		VideoStreamDescriptor videoDesc;
+    /// <summary>
+    /// An empty page that can be used on its own or navigated to within a Frame.
+    /// </summary>
+    public sealed partial class MainPage : Page
+    {
+        CAdvancedMediaSource advanced_media_source;
+        MediaStreamSource media_stream_source;
+        VideoStreamDescriptor videoDesc;
+        AudioStreamDescriptor audioDesc;
+
+        private bool m_hasSetMediaSource = false;
 
         NavigationHelper navigationHelper;
 
-		public MainPage()
-		{
-			LoadVideos();
-			LoadEffects();
+        private const uint c_frameRateN = 30;
+        private const uint c_frameRateD = 1;
+        private const uint c_frameWidth = 640;
+        private const uint c_frameHeight = 480;
+        private const uint c_sampleRate = 44100;
+        private const uint c_channelCount = 2;
+        private const uint c_bitsPerSample = 16;
 
-			this.InitializeComponent();
+        public MainPage()
+        {
+            LoadVideos();
+            LoadEffects();
 
-			this.DataContext = this;
-			this.NavigationCacheMode = NavigationCacheMode.Required;
+            this.InitializeComponent();
+
+            this.DataContext = this;
+            this.NavigationCacheMode = NavigationCacheMode.Required;
             navigationHelper = new NavigationHelper(this);
-		}
 
-		private void Apply_Effect(object sender, RoutedEventArgs e)
-		{
-			if (CurrentEffect == null || CurrentVideo == null) return;
+            InitializeEncodingProperties();
+        }
 
-			string SecondVideo = VideoList.IndexOf(CurrentVideo) == VideoList.Count - 1 ? VideoList[0] : VideoList[VideoList.IndexOf(CurrentVideo) + 1];
+        void InitializeEncodingProperties()
+        {
+            VideoEncodingProperties videoProperties = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Bgra8, c_frameWidth, c_frameHeight);
+            videoDesc = new VideoStreamDescriptor(videoProperties);
+            videoDesc.EncodingProperties.FrameRate.Numerator = c_frameRateN;
+            videoDesc.EncodingProperties.FrameRate.Denominator = c_frameRateD;
+            videoDesc.EncodingProperties.Bitrate = (uint)(c_frameRateN * c_frameRateD * c_frameWidth * c_frameHeight * 4);
 
-			ams = new CAdvancedMediaSource();
+            AudioEncodingProperties audioProperties = AudioEncodingProperties.CreatePcm(c_sampleRate, c_channelCount, c_bitsPerSample);
+            audioDesc = new AudioStreamDescriptor(audioProperties);
 
-			if(!ams.IsInitialized())
-			{
-				int x = 0; //break on error
-			}
+            advanced_media_source = new CAdvancedMediaSource();
 
-			if(!ams.AddVideo(CurrentVideo, EIntroType.FadeIn, 5000, EOutroType.FadeOut, 5000, EVideoEffect.None))
-			{
-				int x = 0;
-			}
+            media_stream_source = new Windows.Media.Core.MediaStreamSource(videoDesc, audioDesc);
 
+            TimeSpan spanBuffer = new TimeSpan(0, 0, 0, 0, 0);
+            media_stream_source.BufferTime = spanBuffer;
+            media_stream_source.Starting += MSS_Starting;
+            media_stream_source.SampleRequested += MSS_SampleRequested;
+        }
 
-			if (!ams.AddVideo("ms-appx:///Assets/Videos/Mortal Kombat Legacy.mp4", EIntroType.FadeIn, 5000, EOutroType.FadeOut, 5000, EVideoEffect.None))
-			{
-				int x = 0;
-			}
-			/*c1 = new TestProj.Class1();
+        void InitializeMediaPlayer()
+        {
+            m_hasSetMediaSource = false;
 
-			
+            if (CurrentEffect == null || CurrentVideo == null)
+                return;
 
-			if (!c1.SetVideo(0, CurrentVideo))
-			{
-				int x = 0; //break on error
-			}
+            SecondVideo = VideoList.IndexOf(CurrentVideo) == VideoList.Count - 1 ? VideoList[0] : VideoList[VideoList.IndexOf(CurrentVideo) + 1];
 
-			if (!c1.SetVideo(1, CurrentVideo))
-			{
-				int x = 0; //break on error
-			}
-			*/
-			SVideoData vd;
+            advanced_media_source.ResetTimeline();
+            advanced_media_source.AddVideo(CurrentVideo);
+            advanced_media_source.AddTransitionEffect(CurrentEffect.EffectType, 1);
+            advanced_media_source.AddVideo(SecondVideo);
 
-			ams.GetVideoData(out vd);
+            Video.SetMediaStreamSource(media_stream_source);
 
-			VideoEncodingProperties videoProperties = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Bgra8, vd.Width, vd.Height);
-			videoDesc = new VideoStreamDescriptor(videoProperties);
-			videoDesc.EncodingProperties.FrameRate.Numerator = vd.Numerator;
-			videoDesc.EncodingProperties.FrameRate.Denominator = vd.Denominator;
-			videoDesc.EncodingProperties.Bitrate = (uint)(((UInt64) vd.Numerator * vd.Width * vd.Height * 4) / vd.Denominator);
+            m_hasSetMediaSource = true;
+        }
 
-			if(vd.HasAudio)
-			{
-				AudioEncodingProperties audioProperties = AudioEncodingProperties.CreatePcm(vd.ASampleRate, vd.AChannelCount, vd.ABitsPerSample);
-				AudioStreamDescriptor audioDesc = new AudioStreamDescriptor(audioProperties);
+        void UninitializeMediaPlayer()
+        {
+            Video.Stop();
+            Video.RemoveAllEffects();
 
-				mss = new MediaStreamSource(videoDesc, audioDesc);
-			}
-			else
-			{
-				mss = new MediaStreamSource(videoDesc);
-			}
-			
-			TimeSpan spanBuffer = new TimeSpan(0, 0, 0, 0, 0);
-			mss.BufferTime = spanBuffer;
-			mss.Starting += MSS_Starting;
-			mss.SampleRequested += MSS_SampleRequested;
+            m_hasSetMediaSource = false;
+        }
 
-			//Video.CurrentStateChanged += mediaPlayer_CurrentStateChanged;
-			Video.SetMediaStreamSource(mss);
-			
-		}
+        void mediaPlayer_CurrentStateChanged(object sender, RoutedEventArgs e)
+        {
+            switch (Video.CurrentState)
+            {
+                case MediaElementState.Paused:
+                case MediaElementState.Stopped:
+                    break;
+            }
+        }
 
-		void MSS_Starting(Windows.Media.Core.MediaStreamSource sender, MediaStreamSourceStartingEventArgs args)
-		{
-			if(!ams.OnStart(videoDesc))
-			{
-				int x = 0;
-			}
+        private void Apply_Effect(object sender, RoutedEventArgs e)
+        {
+            UninitializeMediaPlayer();
 
-			args.Request.SetActualStartPosition(new TimeSpan(0));
-		}
+            InitializeMediaPlayer();
+        }
 
-		void MSS_SampleRequested(Windows.Media.Core.MediaStreamSource sender, MediaStreamSourceSampleRequestedEventArgs args)
-		{
-			if (args.Request.StreamDescriptor is VideoStreamDescriptor)
-			{
-				ams.GenerateVideoSample(args.Request);
-			}
-			else if (args.Request.StreamDescriptor is AudioStreamDescriptor)
-			{
-				ams.GenerateAudioSample(args.Request);
-			}
-		}
+        void MSS_Starting(Windows.Media.Core.MediaStreamSource sender, MediaStreamSourceStartingEventArgs args)
+        {
+            if (!m_hasSetMediaSource || advanced_media_source == null)
+                return;
 
-		private void LoadEffects()
-		{
-			EffectList = new ObservableCollection<Effect>();
-			EffectList.Add(new Effect() { Name = "Black" });
-			EffectList.Add(new Effect() { Name = "White" });
-			EffectList.Add(new Effect() { Name = "Black Fading" });
-			EffectList.Add(new Effect() { Name = "White Fading" });
-			EffectList.Add(new Effect() { Name = "Right Left" });
-			EffectList.Add(new Effect() { Name = "Top Bottom" });
-			EffectList.Add(new Effect() { Name = "Bottom Top" });
-			EffectList.Add(new Effect() { Name = "Quick" });
-			EffectList.Add(new Effect() { Name = "ZoomIn" });
-			EffectList.Add(new Effect() { Name = "ZoomOut" });
-		}
+            advanced_media_source.Initialize(media_stream_source, videoDesc, audioDesc);
 
-		private void LoadVideos()
-		{
-			VideoList = new ObservableCollection<string>();
+            args.Request.SetActualStartPosition(new TimeSpan(0));
+        }
 
-			VideoList.Add(@"ms-appx:///Assets/Videos/big_buck_bunny_trailer_480p_high.mp4");
-			VideoList.Add(@"ms-appx:///Assets/Videos/1.wmv");
-			VideoList.Add(@"ms-appx:///Assets/Videos/Mortal Kombat Legacy.mp4");
+        void MSS_SampleRequested(Windows.Media.Core.MediaStreamSource sender, MediaStreamSourceSampleRequestedEventArgs args)
+        {
+            if (!m_hasSetMediaSource || advanced_media_source == null)
+                return;
 
-		}
+            if (args.Request.StreamDescriptor is VideoStreamDescriptor)
+            {
+                advanced_media_source.GenerateVideoSample(args.Request);
+            }
+            else if (args.Request.StreamDescriptor is AudioStreamDescriptor)
+            {
+                advanced_media_source.GenerateAudioSample(args.Request);
+            }
+        }
 
-		public string CurrentVideo { get; set; }
-		public Effect CurrentEffect { get; set; }
+        private void LoadEffects()
+        {
+            EffectList = new ObservableCollection<Effect>();
+            EffectList.Add(new Effect() { Name = "Black",          EffectType = TransitionEffectType.TRANSITION_BLACK });
+            EffectList.Add(new Effect() { Name = "White",          EffectType = TransitionEffectType.TRANSITION_WHITE });
+            EffectList.Add(new Effect() { Name = "Black Fading",   EffectType = TransitionEffectType.TRANSITION_FADE_TO_BLACK });
+            EffectList.Add(new Effect() { Name = "White Fading",   EffectType = TransitionEffectType.TRANSITION_FADE_TO_WHITE });
+            EffectList.Add(new Effect() { Name = "Fading Transit", EffectType = TransitionEffectType.TRANSITION_FADE_OVERLAP });
+            EffectList.Add(new Effect() { Name = "Right Left",     EffectType = TransitionEffectType.TRANSITION_RIGHT_TO_LEFT });
+            EffectList.Add(new Effect() { Name = "Top Bottom",     EffectType = TransitionEffectType.TRANSITION_TOP_TO_BOTTOM });
+            EffectList.Add(new Effect() { Name = "Bottom Top",     EffectType = TransitionEffectType.TRANSITION_BOTTOM_TO_TOP });
+            EffectList.Add(new Effect() { Name = "ZoomIn",         EffectType = TransitionEffectType.TRANSITION_ROOM_IN });
+            EffectList.Add(new Effect() { Name = "ZoomOut",        EffectType = TransitionEffectType.TRANSITION_ROOM_OUT });
+        }
 
-		public ObservableCollection<string> VideoList { get; set; }
-		public ObservableCollection<Effect> EffectList { get; set; }
+        private void LoadVideos()
+        {
+            VideoList = new ObservableCollection<string>();
+
+            VideoList.Add(@"ms-appx:///Assets/Videos/SunsetBeach0411.mp4");
+            VideoList.Add(@"ms-appx:///Assets/Videos/CuteDog.mp4");
+            VideoList.Add(@"ms-appx:///Assets/Videos/big_buck_bunny_trailer_480p_high.mp4");
+            VideoList.Add(@"ms-appx:///Assets/Videos/1.wmv");
+            VideoList.Add(@"ms-appx:///Assets/Videos/Mortal Kombat Legacy.mp4");
+
+        }
+
+        public string CurrentVideo { get; set; }
+        public string SecondVideo { get; set; }
+        public Effect CurrentEffect { get; set; }
+
+        public ObservableCollection<string> VideoList { get; set; }
+        public ObservableCollection<Effect> EffectList { get; set; }
 
         private void Playback_click(object sender, RoutedEventArgs e)
         {
@@ -182,8 +197,15 @@ namespace Transition_Effect
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
-            this.navigationHelper.OnNavigatedFrom(e);
+            this.navigationHelper.OnNavigatedFrom(e); 
+            
+            // As we are still playing we need to stop MSS from requesting for more samples otherwise we'll crash
+            if (media_stream_source != null)
+            {
+                media_stream_source.NotifyError(MediaStreamSourceErrorStatus.Other);
+                Video.Stop();
+            }
         }
-	}
+    }
 }
 

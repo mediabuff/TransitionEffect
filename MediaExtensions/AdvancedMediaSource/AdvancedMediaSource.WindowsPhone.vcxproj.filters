@@ -2,57 +2,72 @@
 <Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="src">
-      <UniqueIdentifier>{ec798e5d-e58e-4221-80b3-550112d9fa68}</UniqueIdentifier>
+      <UniqueIdentifier>{9bba67ea-3299-4cf2-8012-6064c9b2dc00}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\CAdvancedMediaSource.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\pch.cpp">
+    <ClCompile Include="src\Common.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\CSource.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\helpers.cpp">
+    <ClCompile Include="src\FrameMixer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\pch.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TransitionManager.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\VideoTypes.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="src\CAdvancedMediaSource.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Common.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\CritSec.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\pch.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="src\CSource.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\helpers.h">
+    <ClInclude Include="src\FrameMixer.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\SVideoData.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\VideoTypes.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Quad.h">
+    <ClInclude Include="src\pch.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\SShaderFrameData.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\SVideoData.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TextureLock.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TransitionManager.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\VideoBufferLock.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="src\MainViewPS.hlsl">
+    <FxCompile Include="src\PixelShader.hlsl">
       <Filter>src</Filter>
     </FxCompile>
-    <FxCompile Include="src\MainViewVS.hlsl">
+    <FxCompile Include="src\VertexShader.hlsl">
       <Filter>src</Filter>
     </FxCompile>
   </ItemGroup>
