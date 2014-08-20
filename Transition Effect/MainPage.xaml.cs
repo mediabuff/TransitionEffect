@@ -95,13 +95,13 @@ namespace Transition_Effect
             advanced_media_source.AddVideo(SecondVideo);
 
             Video.SetMediaStreamSource(media_stream_source);
-
             m_hasSetMediaSource = true;
         }
 
         void UninitializeMediaPlayer()
         {
             Video.Stop();
+            
             Video.RemoveAllEffects();
 
             m_hasSetMediaSource = false;
@@ -185,7 +185,6 @@ namespace Transition_Effect
 
         private void Playback_click(object sender, RoutedEventArgs e)
         {
-           
             Frame.Navigate(typeof(Playback));
         }
 
@@ -205,6 +204,11 @@ namespace Transition_Effect
                 media_stream_source.NotifyError(MediaStreamSourceErrorStatus.Other);
                 Video.Stop();
             }
+        }
+
+        private void Video_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            throw new NotSupportedException(e.ErrorMessage);
         }
     }
 }

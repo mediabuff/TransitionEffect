@@ -33,7 +33,7 @@
         
         
         <Grid>
-            <MediaElement Width="320" Height="240"  x:Name="Video" />
+            <MediaElement MediaFailed="Video_MediaFailed" Width="320" Height="240"  x:Name="Video" />
         </Grid>
         
         <Grid  HorizontalAlignment="Center" Grid.Row="1">
