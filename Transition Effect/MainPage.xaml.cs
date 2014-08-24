@@ -168,8 +168,6 @@ namespace Transition_Effect
         {
             VideoList = new ObservableCollection<string>();
 
-            VideoList.Add(@"ms-appx:///Assets/Videos/SunsetBeach0411.mp4");
-            VideoList.Add(@"ms-appx:///Assets/Videos/CuteDog.mp4");
             VideoList.Add(@"ms-appx:///Assets/Videos/big_buck_bunny_trailer_480p_high.mp4");
             VideoList.Add(@"ms-appx:///Assets/Videos/1.wmv");
             VideoList.Add(@"ms-appx:///Assets/Videos/Mortal Kombat Legacy.mp4");
