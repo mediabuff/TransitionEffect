@@ -100,11 +100,11 @@ namespace Transition_Effect
 
         void UninitializeMediaPlayer()
         {
+            m_hasSetMediaSource = false;
+
             Video.Stop();
             
             Video.RemoveAllEffects();
-
-            m_hasSetMediaSource = false;
         }
 
         void mediaPlayer_CurrentStateChanged(object sender, RoutedEventArgs e)
