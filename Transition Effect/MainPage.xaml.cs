@@ -28,10 +28,10 @@ namespace Transition_Effect
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        CAdvancedMediaSource advanced_media_source;
-        MediaStreamSource media_stream_source;
-        VideoStreamDescriptor videoDesc;
-        AudioStreamDescriptor audioDesc;
+        private CAdvancedMediaSource advanced_media_source = null;
+        private MediaStreamSource media_stream_source = null;
+        private VideoStreamDescriptor videoDesc = null;
+        private AudioStreamDescriptor audioDesc = null;
 
         private bool m_hasSetMediaSource = false;
 
@@ -56,28 +56,7 @@ namespace Transition_Effect
             this.NavigationCacheMode = NavigationCacheMode.Required;
             navigationHelper = new NavigationHelper(this);
 
-            InitializeEncodingProperties();
-        }
-
-        void InitializeEncodingProperties()
-        {
-            VideoEncodingProperties videoProperties = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Bgra8, c_frameWidth, c_frameHeight);
-            videoDesc = new VideoStreamDescriptor(videoProperties);
-            videoDesc.EncodingProperties.FrameRate.Numerator = c_frameRateN;
-            videoDesc.EncodingProperties.FrameRate.Denominator = c_frameRateD;
-            videoDesc.EncodingProperties.Bitrate = (uint)(c_frameRateN * c_frameRateD * c_frameWidth * c_frameHeight * 4);
-
-            AudioEncodingProperties audioProperties = AudioEncodingProperties.CreatePcm(c_sampleRate, c_channelCount, c_bitsPerSample);
-            audioDesc = new AudioStreamDescriptor(audioProperties);
-
             advanced_media_source = new CAdvancedMediaSource();
-
-            media_stream_source = new Windows.Media.Core.MediaStreamSource(videoDesc, audioDesc);
-
-            TimeSpan spanBuffer = new TimeSpan(0, 0, 0, 0, 0);
-            media_stream_source.BufferTime = spanBuffer;
-            media_stream_source.Starting += MSS_Starting;
-            media_stream_source.SampleRequested += MSS_SampleRequested;
         }
 
         void InitializeMediaPlayer()
@@ -87,12 +66,30 @@ namespace Transition_Effect
             if (CurrentEffect == null || CurrentVideo == null)
                 return;
 
+            // Initialize Transition
             SecondVideo = VideoList.IndexOf(CurrentVideo) == VideoList.Count - 1 ? VideoList[0] : VideoList[VideoList.IndexOf(CurrentVideo) + 1];
-
             advanced_media_source.ResetTimeline();
             advanced_media_source.AddVideo(CurrentVideo);
             advanced_media_source.AddTransitionEffect(CurrentEffect.EffectType, 1);
             advanced_media_source.AddVideo(SecondVideo);
+
+            // Initialize MediaStreamSource
+            VideoEncodingProperties videoProperties = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Bgra8, c_frameWidth, c_frameHeight);
+            videoDesc = new VideoStreamDescriptor(videoProperties);
+            videoDesc.EncodingProperties.FrameRate.Numerator = c_frameRateN;
+            videoDesc.EncodingProperties.FrameRate.Denominator = c_frameRateD;
+            videoDesc.EncodingProperties.Bitrate = (uint)(c_frameRateN * c_frameRateD * c_frameWidth * c_frameHeight * 4);
+
+            AudioEncodingProperties audioProperties = AudioEncodingProperties.CreatePcm(c_sampleRate, c_channelCount, c_bitsPerSample);
+            audioDesc = new AudioStreamDescriptor(audioProperties);
+
+            media_stream_source = new Windows.Media.Core.MediaStreamSource(videoDesc, audioDesc);
+
+            TimeSpan spanBuffer = new TimeSpan(0, 0, 0, 0, 0);
+            media_stream_source.BufferTime = spanBuffer;
+            media_stream_source.Starting += MSS_Starting;
+            media_stream_source.Closed += MSS_Closed;
+            media_stream_source.SampleRequested += MSS_SampleRequested;
 
             Video.SetMediaStreamSource(media_stream_source);
             m_hasSetMediaSource = true;
@@ -102,18 +99,11 @@ namespace Transition_Effect
         {
             m_hasSetMediaSource = false;
 
-            Video.Stop();
-            
-            Video.RemoveAllEffects();
-        }
-
-        void mediaPlayer_CurrentStateChanged(object sender, RoutedEventArgs e)
-        {
-            switch (Video.CurrentState)
+            if (media_stream_source != null)
             {
-                case MediaElementState.Paused:
-                case MediaElementState.Stopped:
-                    break;
+                // NotifyError to shutdown MediaStreamSource
+                media_stream_source.NotifyError(MediaStreamSourceErrorStatus.Other);
+                Video.Stop();            
             }
         }
 
@@ -132,6 +122,18 @@ namespace Transition_Effect
             advanced_media_source.Initialize(media_stream_source, videoDesc, audioDesc);
 
             args.Request.SetActualStartPosition(new TimeSpan(0));
+        }
+
+        void MSS_Closed(Windows.Media.Core.MediaStreamSource sender, MediaStreamSourceClosedEventArgs args)
+        {
+            sender.Starting -= MSS_Starting;
+            sender.Closed -= MSS_Closed;
+            sender.SampleRequested -= MSS_SampleRequested;
+
+            if (sender == media_stream_source)
+            {
+                media_stream_source = null;
+            }
         }
 
         void MSS_SampleRequested(Windows.Media.Core.MediaStreamSource sender, MediaStreamSourceSampleRequestedEventArgs args)

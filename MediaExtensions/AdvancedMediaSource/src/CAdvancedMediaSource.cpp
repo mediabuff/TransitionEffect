@@ -142,6 +142,7 @@ void CAdvancedMediaSource::Initialize(MediaStreamSource ^ mss, VideoStreamDescri
     // We reset each time we are initialized
     m_ulVideoTimestamp = 0;
     m_ulAudioTimestamp = 0;
+    m_EndOfStream = false;
     
     m_frameMixer = ref new FrameMixer();
 
