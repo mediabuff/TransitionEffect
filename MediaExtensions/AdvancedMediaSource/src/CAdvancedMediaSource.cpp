@@ -20,12 +20,23 @@ using namespace DirectX;
 
 CAdvancedMediaSource::CAdvancedMediaSource()
     : m_hDevice(nullptr)
+    , m_spSampleAllocator(nullptr)
+    , m_spDeviceManager(nullptr)
+    , m_spD3DDevice(nullptr)
+    , m_spD3DContext(nullptr)
     , m_ulVideoTimestamp(0)
+    , m_ulAudioTimestamp(0)
     , m_iVideoFrameNumber(0)
     , m_SourceInitialized(false)
     , m_EndOfStream(false)
     , m_outputWidth(0)
     , m_outputHeight(0)
+    , m_spInBufferTex(nullptr)
+    , m_spOutBufferTex(nullptr)
+    , m_spOutBufferStage(nullptr)
+    , m_spInputType(nullptr)
+    , m_spOutputType(nullptr)
+    , m_spAudioType(nullptr)
 {
 
 }
@@ -144,8 +155,6 @@ void CAdvancedMediaSource::Initialize(MediaStreamSource ^ mss, VideoStreamDescri
     m_ulAudioTimestamp = 0;
     m_EndOfStream = false;
     
-    m_frameMixer = ref new FrameMixer();
-
     if (!InitialSourceSteams())
     {
         hr = E_FAIL;
@@ -193,8 +202,6 @@ bool CAdvancedMediaSource::InitialSourceSteams()
     m_transition_manager.CleanTimeLine();
     for (int i = 0; i < (int)m_VideoList.size(); i++)
     {
-        SVideoData vd;
-
         CSourcePtr pV(new CSource(m_spDeviceManager.Get(), m_spOutputType.Get(), m_spAudioType.Get(), m_VideoList[i]));
 
         if (!pV->IsInitialized())
@@ -327,8 +334,7 @@ bool CAdvancedMediaSource::InitializeSource()
     {
         m_spD3DDevice->GetImmediateContext(m_spD3DContext.ReleaseAndGetAddressOf());
         
-        if (m_frameMixer != nullptr)
-            m_frameMixer->Initialize(m_spD3DDevice.Get(), m_outputWidth, m_outputHeight);
+        m_frameMixer.Initialize(m_spD3DDevice.Get(), m_outputWidth, m_outputHeight);
 
         m_spDeviceManager->UnlockDevice(m_hDevice, TRUE);
     }
@@ -604,7 +610,7 @@ HRESULT CAdvancedMediaSource::GenerateFrame(UINT32 ui32Width, UINT32 ui32Height,
 
                 SVideoData vd;
                 m_Sources[m_CurrentVideo]->GetVideoData(&vd);
-                m_frameMixer->SetInputSize(m_spD3DContext.Get(), vd.Width, vd.Height);
+                m_frameMixer.SetInputSize(m_spD3DContext.Get(), vd.Width, vd.Height);
 
                 ProcessOutput(spInput.Get(), pBuffer);
 
@@ -659,8 +665,8 @@ HRESULT CAdvancedMediaSource::GenerateFrame2(UINT32 ui32Width, UINT32 ui32Height
         m_spD3DDevice->GetImmediateContext(m_spD3DContext.ReleaseAndGetAddressOf());
 
         TransitionParameter parameter = m_transition_manager.GetVideoTransitionParameter(curr_time_stamp, EMPTY_VIDEO);
-        m_frameMixer->SetTransitionparameter(parameter);
-        m_frameMixer->SetInputSize(m_spD3DContext.Get(), m_outputWidth, m_outputHeight);
+        m_frameMixer.SetTransitionparameter(parameter);
+        m_frameMixer.SetInputSize(m_spD3DContext.Get(), m_outputWidth, m_outputHeight);
 
         ProcessOutput(pBuffer);
 
@@ -702,8 +708,8 @@ HRESULT CAdvancedMediaSource::GenerateFrame2(UINT32 ui32Width, UINT32 ui32Height
                 m_Sources[video_index]->GetVideoData(&vd);
 
                 TransitionParameter parameter = m_transition_manager.GetVideoTransitionParameter(curr_time_stamp, video_index);
-                m_frameMixer->SetTransitionparameter(parameter);
-                m_frameMixer->SetInputSize(m_spD3DContext.Get(), vd.Width, vd.Height);
+                m_frameMixer.SetTransitionparameter(parameter);
+                m_frameMixer.SetInputSize(m_spD3DContext.Get(), vd.Width, vd.Height);
 
                 ProcessOutput(spInput.Get(), pBuffer);
 
@@ -866,7 +872,7 @@ void CAdvancedMediaSource::ProcessOutput(IMFMediaBuffer *pIn, IMFMediaBuffer *pO
     }
 
     // do some processing
-    m_frameMixer->ProcessFrame(m_spD3DDevice.Get(), spInTex.Get(), uiInIndex, spOutTex.Get(), uiOutIndex);
+    m_frameMixer.ProcessFrame(m_spD3DDevice.Get(), spInTex.Get(), uiInIndex, spOutTex.Get(), uiOutIndex);
 
     //m_spD3DContext->CopyResource(spOutTex.Get(), spInTex.Get());
 
@@ -955,7 +961,7 @@ void CAdvancedMediaSource::ProcessOutput(IMFMediaBuffer *pOut)
     }
 
     // do some processing
-    m_frameMixer->ProcessFrame(m_spD3DDevice.Get(), spOutTex.Get(), uiOutIndex);
+    m_frameMixer.ProcessFrame(m_spD3DDevice.Get(), spOutTex.Get(), uiOutIndex);
 
     //m_spD3DContext->CopyResource(spOutTex.Get(), spInTex.Get());
 

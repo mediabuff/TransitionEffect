@@ -8,6 +8,7 @@
 #include "pch.h"
 #include "FrameMixer.h"
 
+using namespace AdvancedMediaSource;
 using namespace DirectX;
 
 struct ScreenVertex
@@ -15,6 +16,30 @@ struct ScreenVertex
     FLOAT pos[4];
     FLOAT tex[2];
 };
+
+FrameMixer::FrameMixer()
+    : m_uiInputWidth(0)
+    , m_uiInputHeight(0)
+    , m_uiInputNewWidth(0)
+    , m_uiInputNewHeight(0)
+    , m_uiWidth(0)
+    , m_uiHeight(0)
+    , m_spScreenQuadVB(nullptr)
+    , m_spSampleStateLinear(nullptr)
+    , m_spQuadLayout(nullptr)
+    , m_spVertexShader(nullptr)
+    , m_spPixelShader(nullptr)
+    , m_spBlendStateNoBlend(nullptr)
+    , m_vsTransformBuffer(nullptr)
+    , m_psFadingBuffer(nullptr)
+{
+
+}
+
+FrameMixer::~FrameMixer()
+{
+
+}
 
 void FrameMixer::Invalidate()
 {

@@ -7,6 +7,8 @@ CSource::CSource(IMFDXGIDeviceManager* pDXManager, IMFMediaType * pTargetVideoTy
     Platform::String^ url)
     : m_Initialized(false)
     , m_spMediaType(nullptr)
+    , m_pSourceReader(nullptr)
+    , m_pSample(nullptr)
 {
 
     HRESULT hr;

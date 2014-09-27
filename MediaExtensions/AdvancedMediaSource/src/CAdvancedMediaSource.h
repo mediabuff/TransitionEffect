@@ -85,7 +85,7 @@ namespace AdvancedMediaSource
         ComPtr<IMFMediaType> m_spAudioType;        // Output media type.
         
         // Transform
-        FrameMixer ^m_frameMixer;
+        FrameMixer m_frameMixer;
 
         TransitionManager m_transition_manager;
     };
