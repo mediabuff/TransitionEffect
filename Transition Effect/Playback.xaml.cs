@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -24,137 +25,64 @@ using Windows.Media.MediaProperties;
 namespace Transition_Effect
 {
     
-    public sealed partial class Playback : Page,INotifyPropertyChanged
+    public sealed partial class Playback : Page
     {
-        DispatcherTimer PlaybackTimer = new DispatcherTimer();
         NavigationHelper navigationHelper;
-
-        CAdvancedMediaSource ams;
-        MediaStreamSource mss;
-        VideoStreamDescriptor videoDesc;
 
         public Playback()
         {
-            //CurrentVideo = "ms-appx:///Assets/Videos/Mortal Kombat Legacy.mp4";
-            Unloaded += Playback_Unloaded;
+            LoadVideos();
+            LoadEffects();
+
             this.InitializeComponent();
+
             this.DataContext = this;
-
-            PlaybackTimer.Interval = TimeSpan.FromMilliseconds(100);
-            //PlaybackTimer.Tick += (ss, ee) =>
-            //    {
-            //        Position = Video.Position.TotalMilliseconds;
-            //    };
-            //PlaybackTimer.Start();
-
+            this.NavigationCacheMode = NavigationCacheMode.Required;
             navigationHelper = new NavigationHelper(this);
-
-            ams = new CAdvancedMediaSource();
-
-            //if (!ams.IsInitialized())
-            //{
-            //    int x = 0; //break on error
-            //}
-
-
-            //if (!ams.AddVideo("ms-appx:///Assets/Videos/Mortal Kombat Legacy.mp4", EIntroType.FadeIn, 5000, EOutroType.FadeOut, 5000, EVideoEffect.None))
-            //{
-            //    int x = 0;
-            //}
-
-            //SVideoData vd;
-
-            //ams.GetVideoData(out vd);
-
-            //VideoEncodingProperties videoProperties = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Argb32, vd.Width, vd.Height);
-            //videoDesc = new VideoStreamDescriptor(videoProperties);
-            //videoDesc.EncodingProperties.FrameRate.Numerator = vd.Numerator;
-            //videoDesc.EncodingProperties.FrameRate.Denominator = vd.Denominator;
-            //videoDesc.EncodingProperties.Bitrate = (uint)(((UInt64)vd.Numerator * vd.Width * vd.Height * 4) / vd.Denominator);
-
-            //if (vd.HasAudio)
-            //{
-            //    AudioEncodingProperties audioProperties = AudioEncodingProperties.CreatePcm(vd.ASampleRate, vd.AChannelCount, vd.ABitsPerSample);
-            //    AudioStreamDescriptor audioDesc = new AudioStreamDescriptor(audioProperties);
-
-            //    mss = new MediaStreamSource(videoDesc, audioDesc);
-            //}
-            //else
-            //{
-            //    mss = new MediaStreamSource(videoDesc);
-            //}
-
-            TimeSpan spanBuffer = new TimeSpan(0, 0, 0, 0, 250);
-            mss.BufferTime = spanBuffer;
-            mss.Starting += MSS_Starting;
-            mss.SampleRequested += MSS_SampleRequested;
-
-            //Video.CurrentStateChanged += mediaPlayer_CurrentStateChanged;
-            Video.SetMediaStreamSource(mss);
         }
 
-        void MSS_Starting(Windows.Media.Core.MediaStreamSource sender, MediaStreamSourceStartingEventArgs args)
+        private void Apply_Effect(object sender, RoutedEventArgs e)
         {
-            //if (!ams.OnStart(videoDesc))
-            //{
-            //    int x = 0;
-            //}
 
-            args.Request.SetActualStartPosition(new TimeSpan(0));
         }
 
-        void MSS_SampleRequested(Windows.Media.Core.MediaStreamSource sender, MediaStreamSourceSampleRequestedEventArgs args)
+        private void LoadEffects()
         {
-            if (args.Request.StreamDescriptor is VideoStreamDescriptor)
-            {
-                ams.GenerateVideoSample(args.Request);
-            }
-            else if (args.Request.StreamDescriptor is AudioStreamDescriptor)
-            {
-                ams.GenerateAudioSample(args.Request);
-            }
+            EffectList = new ObservableCollection<Effect>();
+            EffectList.Add(new Effect() { Name = "Black", EffectType = TransitionEffectType.TRANSITION_BLACK });
+            EffectList.Add(new Effect() { Name = "White", EffectType = TransitionEffectType.TRANSITION_WHITE });
+            EffectList.Add(new Effect() { Name = "Black Fading", EffectType = TransitionEffectType.TRANSITION_FADE_TO_BLACK });
+            EffectList.Add(new Effect() { Name = "White Fading", EffectType = TransitionEffectType.TRANSITION_FADE_TO_WHITE });
+            EffectList.Add(new Effect() { Name = "Fading Transit", EffectType = TransitionEffectType.TRANSITION_FADE_OVERLAP });
+            EffectList.Add(new Effect() { Name = "Right Left", EffectType = TransitionEffectType.TRANSITION_RIGHT_TO_LEFT });
+            EffectList.Add(new Effect() { Name = "Top Bottom", EffectType = TransitionEffectType.TRANSITION_TOP_TO_BOTTOM });
+            EffectList.Add(new Effect() { Name = "Bottom Top", EffectType = TransitionEffectType.TRANSITION_BOTTOM_TO_TOP });
+            EffectList.Add(new Effect() { Name = "ZoomIn", EffectType = TransitionEffectType.TRANSITION_ROOM_IN });
+            EffectList.Add(new Effect() { Name = "ZoomOut", EffectType = TransitionEffectType.TRANSITION_ROOM_OUT });
         }
 
-        void Playback_Unloaded(object sender, RoutedEventArgs e)
+        private void LoadVideos()
         {
-            PlaybackTimer.Stop();
+            VideoList = new ObservableCollection<string>();
+
+            VideoList.Add(@"ms-appx:///Assets/Videos/1.mp4");
+            VideoList.Add(@"ms-appx:///Assets/Videos/big_buck_bunny_trailer_480p_high.mp4");
+            VideoList.Add(@"ms-appx:///Assets/Videos/Mortal Kombat Legacy.mp4");
+
         }
+
+        public string CurrentVideo { get; set; }
+        public string SecondVideo { get; set; }
+        public string ThirdVideo { get; set; }
+        public Effect CurrentEffect { get; set; }
+
+        public ObservableCollection<string> VideoList { get; set; }
+        public ObservableCollection<Effect> EffectList { get; set; }
 
         private void Save_click(object sender, RoutedEventArgs e)
         {
             
         }
-
-        public string CurrentVideo { get; set; }
-
-        private double maximum;
-        public double Maximum
-        {
-            get { return maximum; }
-            set { maximum = value;
-               OnPropertyChanged("Maximum");
-            }
-        }
-        
-
-        private double position;
-        public double Position
-        {
-            get { return position; }
-            set { position = value;
-            OnPropertyChanged("Position");
-            }
-        }
-
-        private double playbackRate;
-        public double PlaybackRate
-        {
-            get { return playbackRate; }
-            set { playbackRate = value;
-            OnPropertyChanged("PlaybackRate");
-            }
-        }
-        
 
         private void OnPropertyChanged(string p)
         {
@@ -164,20 +92,6 @@ namespace Transition_Effect
 
 
         public event PropertyChangedEventHandler PropertyChanged;
-
-        private void MediaOpened(object sender, RoutedEventArgs e)
-        {
-            //Maximum = Video.NaturalDuration.TimeSpan.TotalMilliseconds; 
-        }
-
-       
-        private void SeekPosition(object sender, RangeBaseValueChangedEventArgs e)
-        {
-            int SliderValue = (int)e.NewValue;
-            TimeSpan ts = new TimeSpan(0, 0, 0, 0, SliderValue);
-            Video.Position = ts;
-        }
-
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
@@ -189,14 +103,9 @@ namespace Transition_Effect
             this.navigationHelper.OnNavigatedFrom(e);
         }
 
-        private void Slider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        private void Video_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            RangeBase rb = sender as RangeBase;
-
-            if(rb != null && ams != null)
-            {
-                //ams.SetPlaybackRate((int)rb.Value, 10);
-            }
+            throw new NotSupportedException(e.ErrorMessage);
         }
     }
 }
