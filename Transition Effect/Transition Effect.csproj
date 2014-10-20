@@ -163,6 +163,10 @@
       <Project>{8d877eef-1e85-4d42-8b69-7d820e01be35}</Project>
       <Name>AdvancedMediaSource.WindowsPhone</Name>
     </ProjectReference>
+    <ProjectReference Include="..\MediaExtensions\TransitionEffectTransform\TransitionEffectTransform.vcxproj">
+      <Project>{a4728004-4c23-495a-ab3f-7858a1511a23}</Project>
+      <Name>TransitionEffectTransform</Name>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '12.0' ">
     <VisualStudioVersion>12.0</VisualStudioVersion>

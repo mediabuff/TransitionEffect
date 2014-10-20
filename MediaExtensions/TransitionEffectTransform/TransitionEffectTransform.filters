@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Resources">
+      <UniqueIdentifier>40ad94e6-2c0d-4615-a681-58aac6899650</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tga;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="SchemeTransform.cpp" />
+    <ClCompile Include="SchemeModule.cpp" />
+    <ClCompile Include="SchemeBasic.cpp" />
+    <ClCompile Include="SchemeTrip.cpp" />
+    <ClCompile Include="SchemeSong.cpp" />
+    <ClCompile Include="SchemeSpeaker.cpp" />
+    <ClCompile Include="SchemeFriends.cpp" />
+    <ClCompile Include="SchemeNews.cpp" />
+    <ClCompile Include="..\Common\ColorConverter.cpp" />
+    <ClCompile Include="..\Common\Common.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="SchemeTransform.h" />
+    <ClInclude Include="TextureLock.h" />
+    <ClInclude Include="SchemeModule.h" />
+    <ClInclude Include="SchemeBase.h" />
+    <ClInclude Include="SchemeBasic.h" />
+    <ClInclude Include="SchemeDef.h" />
+    <ClInclude Include="SchemeTrip.h" />
+    <ClInclude Include="SchemeSong.h" />
+    <ClInclude Include="SchemeSpeaker.h" />
+    <ClInclude Include="SchemeFriends.h" />
+    <ClInclude Include="SchemeNews.h" />
+    <ClInclude Include="..\Common\ColorConverter.h" />
+    <ClInclude Include="..\Common\Common.h" />
+  </ItemGroup>
+</Project>

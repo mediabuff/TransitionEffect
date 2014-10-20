@@ -68,10 +68,15 @@ namespace Transition_Effect
 
             // Initialize Transition
             SecondVideo = VideoList.IndexOf(CurrentVideo) == VideoList.Count - 1 ? VideoList[0] : VideoList[VideoList.IndexOf(CurrentVideo) + 1];
+
+            ThirdVideo = VideoList.IndexOf(SecondVideo) == VideoList.Count - 1 ? VideoList[0] : VideoList[VideoList.IndexOf(SecondVideo) + 1];
+            
             advanced_media_source.ResetTimeline();
             advanced_media_source.AddVideo(CurrentVideo);
             advanced_media_source.AddTransitionEffect(CurrentEffect.EffectType, 1);
             advanced_media_source.AddVideo(SecondVideo);
+            advanced_media_source.AddTransitionEffect(CurrentEffect.EffectType, 1);
+            advanced_media_source.AddVideo(ThirdVideo);
 
             // Initialize MediaStreamSource
             VideoEncodingProperties videoProperties = VideoEncodingProperties.CreateUncompressed(MediaEncodingSubtypes.Bgra8, c_frameWidth, c_frameHeight);
@@ -170,14 +175,15 @@ namespace Transition_Effect
         {
             VideoList = new ObservableCollection<string>();
 
-            VideoList.Add(@"ms-appx:///Assets/Videos/big_buck_bunny_trailer_480p_high.mp4");
-            VideoList.Add(@"ms-appx:///Assets/Videos/1.wmv");
+            VideoList.Add(@"ms-appx:///Assets/Videos/1.mp4");
+            VideoList.Add(@"ms-appx:///Assets/Videos/big_buck_bunny_trailer_480p_high.mp4");           
             VideoList.Add(@"ms-appx:///Assets/Videos/Mortal Kombat Legacy.mp4");
 
         }
 
         public string CurrentVideo { get; set; }
         public string SecondVideo { get; set; }
+        public string ThirdVideo { get; set; }
         public Effect CurrentEffect { get; set; }
 
         public ObservableCollection<string> VideoList { get; set; }

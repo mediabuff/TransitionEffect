@@ -39,6 +39,14 @@
         </m3:VisualElements>
     </Application>
   </Applications>
+  <Extensions>
+    <Extension Category="windows.activatableClass.inProcessServer">
+      <InProcessServer>
+        <Path>TransitionEffectTransform.dll</Path>
+        <ActivatableClass ActivatableClassId="TransitionEffectTransform.TransitionEffect" ThreadingModel="both"/>
+      </InProcessServer>
+    </Extension>
+  </Extensions>
   <Capabilities>
     <Capability Name="internetClientServer" />
   </Capabilities>

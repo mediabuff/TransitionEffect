@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.30324.0
+VisualStudioVersion = 12.0.30501.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Transition Effect", "Transition Effect\Transition Effect.csproj", "{491B7156-BD67-4256-A3E6-EC712CC738C2}"
 EndProject
@@ -9,11 +9,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MediaExtensions", "MediaExt
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AdvancedMediaSource.WindowsPhone", "MediaExtensions\AdvancedMediaSource\AdvancedMediaSource.WindowsPhone.vcxproj", "{8D877EEF-1E85-4D42-8B69-7D820E01BE35}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TransitionEffectTransform", "MediaExtensions\TransitionEffectTransform\TransitionEffectTransform.vcxproj", "{A4728004-4C23-495A-AB3F-7858A1511A23}"
+EndProject
 Global
-	GlobalSection(SubversionScc) = preSolution
-		Svn-Managed = True
-		Manager = AnkhSVN - Subversion Support for Visual Studio
-	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Debug|ARM = Debug|ARM
@@ -75,11 +73,34 @@ Global
 		{8D877EEF-1E85-4D42-8B69-7D820E01BE35}.Release|Win32.Build.0 = Release|Win32
 		{8D877EEF-1E85-4D42-8B69-7D820E01BE35}.Release|x86.ActiveCfg = Release|Win32
 		{8D877EEF-1E85-4D42-8B69-7D820E01BE35}.Release|x86.Build.0 = Release|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|ARM.ActiveCfg = Debug|ARM
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|ARM.Build.0 = Debug|ARM
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|Win32.ActiveCfg = Debug|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|Win32.Build.0 = Debug|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|x86.ActiveCfg = Debug|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Debug|x86.Build.0 = Debug|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|Any CPU.ActiveCfg = Release|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|ARM.ActiveCfg = Release|ARM
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|ARM.Build.0 = Release|ARM
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|Win32.ActiveCfg = Release|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|Win32.Build.0 = Release|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|x86.ActiveCfg = Release|Win32
+		{A4728004-4C23-495A-AB3F-7858A1511A23}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{8D877EEF-1E85-4D42-8B69-7D820E01BE35} = {15D12FAB-E1C5-442F-8B50-716CFA419909}
+		{A4728004-4C23-495A-AB3F-7858A1511A23} = {15D12FAB-E1C5-442F-8B50-716CFA419909}
+	EndGlobalSection
+	GlobalSection(SubversionScc) = preSolution
+		Svn-Managed = True
+		Manager = AnkhSVN - Subversion Support for Visual Studio
 	EndGlobalSection
 EndGlobal
