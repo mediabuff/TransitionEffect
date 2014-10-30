@@ -191,9 +191,8 @@ namespace Transition_Effect
 
         private void Playback_click(object sender, RoutedEventArgs e)
         {
-            Frame.Navigate(typeof(Playback));
+            App.RootFrame.Navigate(typeof(Playback));
         }
-
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {

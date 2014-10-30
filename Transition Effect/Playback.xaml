@@ -7,15 +7,21 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    
     <Page.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Templates/TemplateResourceDictionary.xaml"/>
                 <ResourceDictionary Source="Converters/ConverterResourceDictionary.xaml"/>
+                <ResourceDictionary Source="Templates/TemplateResourceDictionary.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Page.Resources>
-
+    <Page.BottomAppBar>
+        <CommandBar>
+            <AppBarButton Icon="Back" x:Name="Back" Click="Back_Click"/>
+            <AppBarButton Icon="Save" x:Name="Save" Click="Save_Click"/>
+        </CommandBar>
+    </Page.BottomAppBar>	
     <Grid>
 
         <Grid.RowDefinitions>
@@ -25,10 +31,8 @@
             <RowDefinition/>
         </Grid.RowDefinitions>
 
-
-        <Grid>
-            <MediaElement MediaFailed="Video_MediaFailed" Width="320" Height="240"  x:Name="Video" />
-        </Grid>
+        <MediaElement x:Name="Video"/>
+        <TextBlock Text="{Binding Prog}" Foreground="White" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
         <Grid  HorizontalAlignment="Center" Grid.Row="1">
             <Button Click="Apply_Effect"  Content="ApplyEffect"/>

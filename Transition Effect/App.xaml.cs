@@ -101,6 +101,7 @@ namespace Transition_Effect
             Window.Current.Activate();
         }
 
+        public static Frame RootFrame;
         /// <summary>
         /// Restores the content transitions after the app has launched.
         /// </summary>
@@ -108,9 +109,8 @@ namespace Transition_Effect
         /// <param name="e">Details about the navigation event.</param>
         private void RootFrame_FirstNavigated(object sender, NavigationEventArgs e)
         {
-        
             var rootFrame = sender as Frame;
-       
+            RootFrame = rootFrame;
             rootFrame.ContentTransitions = this.transitions ?? new TransitionCollection() { new NavigationThemeTransition() };
             rootFrame.Navigated -= this.RootFrame_FirstNavigated;
         }
